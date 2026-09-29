@@ -3,7 +3,7 @@
 _Last updated: 2026-09-29_
 
 ## Current phase
-Phase 8 — Tracking/attribution/conversions/ledger (Phases 1–7 complete).
+Phase 11 — Funding & payouts (Phases 1–10 core complete).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -41,9 +41,18 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   destination host, QR PNG stored via storage abstraction (local/S3), authorized file download, business code
   pause/resume/revoke, expiry — TESTED.
 
+- Phase 8 (tracking/attribution): `/r/:token` redirect (allowlisted destination re-validated, `codek_ref` click id,
+  hashed IP/UA, first-party session cookie, bot flag), `POST /track/click`; touchpoints from CODEK codes, click refs,
+  referral tokens; immutable versioned decisions using the snapshot policy of the primary evidence (D-025) — TESTED.
+- Phase 9 (conversions): idempotent pipeline (per-order advisory lock + unique event ids), out-of-order handling
+  (parked refunds/cancels replayed; paid-before-created), cumulative refunds, controlled redemption interface
+  (verified), manual evidence (self-reported, admin approval only), business approve/reject — TESTED.
+- Phase 10 (commission/ledger): commission from frozen snapshot, fee from snapshot fee plan, lifecycle
+  pending→approved→funded→available with FIFO funding allocation and hold release, proportional reversals and
+  clawbacks, idempotent balanced postings, invariant verification — TESTED (apps/api/test/pipeline.test.ts).
+
 ## Next task
-Phases 8–10 — tracking (redirect + click API), attribution touchpoints/decisions, conversion pipeline, commission
-engine persistence, double-entry ledger service.
+Phase 11 — funding API (provider abstraction), payouts (request/attempts/retry/failure), earnings views.
 
 ## Environment notes
 - Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).
