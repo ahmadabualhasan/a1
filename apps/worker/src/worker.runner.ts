@@ -73,6 +73,10 @@ export class WorkerRunner implements OnApplicationBootstrap, OnApplicationShutdo
           return this.jobs.checkLedger();
         case 'nightly-reconciliation':
           return this.jobs.nightlyReconciliation();
+        case 'analytics':
+          return this.jobs.aggregateAnalytics();
+        case 'billing':
+          return this.jobs.billingCycle();
         case 'retention':
           return this.jobs.retentionCleanup();
         default:
@@ -85,6 +89,8 @@ export class WorkerRunner implements OnApplicationBootstrap, OnApplicationShutdo
     await scheduler.upsertJobScheduler('every-minute', { every: 60_000 }, { name: 'every-minute' });
     await scheduler.upsertJobScheduler('ledger-check', { every: 3_600_000 }, { name: 'ledger-check' });
     await scheduler.upsertJobScheduler('nightly-reconciliation', { pattern: '17 2 * * *' }, { name: 'nightly-reconciliation' });
+    await scheduler.upsertJobScheduler('analytics', { every: 3_600_000 }, { name: 'analytics' });
+    await scheduler.upsertJobScheduler('billing', { pattern: '29 1 * * *' }, { name: 'billing' });
     await scheduler.upsertJobScheduler('retention', { pattern: '43 3 * * *' }, { name: 'retention' });
     this.ready = true;
 

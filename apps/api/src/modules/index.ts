@@ -20,6 +20,8 @@ import { FraudModule } from './fraud/fraud.module';
 import { DisputesModule } from './disputes/disputes.module';
 import { LegalModule } from './legal/legal.module';
 import { AdminModule } from './admin/admin.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { BillingModule } from '../billing/billing.module';
 
 /** Domain modules of the modular monolith (spec §18). Registered here in dependency order. */
-export const DOMAIN_MODULES: Array<Type | DynamicModule> = [BusinessesModule, CreatorsModule, CatalogModule, CampaignsModule, PromotionModule, PartnershipsModule, FilesModule, FinanceModule, TrackingModule, ConversionsModule, FundingModule, PayoutsModule, IntegrationsModule, JobsModule, NotificationsModule, MessagingModule, DeliverablesModule, FraudModule, DisputesModule, LegalModule, AdminModule];
+export const DOMAIN_MODULES: Array<Type | DynamicModule> = [BusinessesModule, CreatorsModule, CatalogModule, CampaignsModule, PromotionModule, PartnershipsModule, FilesModule, FinanceModule, TrackingModule, ConversionsModule, FundingModule, PayoutsModule, IntegrationsModule, JobsModule, NotificationsModule, MessagingModule, DeliverablesModule, FraudModule, DisputesModule, LegalModule, AdminModule, AnalyticsModule, BillingModule];

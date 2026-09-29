@@ -10,9 +10,8 @@ _Last updated: 2026-09-29_
 4. Continue at **Next task** below. Never restart completed phases.
 
 ## Current phase / task
-- Phase: 15 — Analytics & reporting (Phases 1–14 complete).
-- Task: KPI/funnel endpoints with provenance and verified/self-reported breakdown, ledger reconciliation of totals,
-  CSV exports, daily aggregation job.
+- Phase: 17 — Web app (public site, Business, Creator, Admin UIs) + typed API client (Phases 1–16 complete).
+- Task: export OpenAPI, generate @codek/api-client, scaffold Next.js App Router app, then build screens.
 
 ## Last successful checkpoint
 - CI run #8 (commit c4566eb, Phase 12) — **success**. Run #7 failed on a test-file type error that was fixed in c4566eb.
@@ -91,11 +90,20 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   audit log API + chain verification, settings/flags, legal document versioning & re-acceptance, privacy requests,
   data export and anonymization — TESTED (apps/api/test/admin.test.ts).
 
+- Phase 15 (analytics): business overview KPIs + funnel with verified/self-reported/attribution-state breakdown,
+  provenance, ledger cross-check, creator & campaign tables, creator analytics, platform analytics, CSV export
+  (formula-injection safe), hourly daily-aggregation job, timeseries — TESTED (apps/api/test/analytics.test.ts).
+  Definitions: docs/ANALYTICS.md.
+- Phase 16 (billing/pricing): public transparent pricing, admin pricing plans, subscriptions behind the pricing
+  decision flag (off), fee plan resolution frozen into partnership snapshots (verified: plan change affects only new
+  partnerships), idempotent invoice generation job — TESTED (apps/api/test/billing.test.ts). Payment collection for
+  subscription invoices: DECISION NEEDED (D-003) / CREDENTIAL_REQUIRED.
+
 ## Next task
-Phase 15 analytics → 16 billing/pricing → 17 web app + api-client → 18 hardening/E2E/load/backup → 19 deployment.
+Phase 17 web app + api-client → 18 hardening/E2E/load/backup → 19 deployment.
 
 ## Tests
-- Passing: domain (53), config (5), database invariants (8), API integration (89). Failing: none.
+- Passing: domain (53), config (5), database invariants (8), API integration (94). Failing: none.
 
 ## Known issues / blockers
 - None blocking. External credentials required for live providers (see below). Decisions pending: docs/DECISIONS.md.

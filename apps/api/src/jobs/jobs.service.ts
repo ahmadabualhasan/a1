@@ -11,6 +11,8 @@ import { ReconciliationService } from '../modules/integrations/reconciliation.se
 import { AdapterRegistry } from '../modules/integrations/adapters/registry';
 import { PayoutsService } from '../modules/payouts/payouts.service';
 import { MetricsService } from '../observability/metrics.service';
+import { AnalyticsService } from '../modules/analytics/analytics.service';
+import { BillingService } from '../billing/billing.service';
 
 /**
  * Scheduled/background work (spec §25). Each task is idempotent and safe to run concurrently on several workers.
@@ -32,7 +34,18 @@ export class JobsService {
     private readonly adapters: AdapterRegistry,
     private readonly payouts: PayoutsService,
     private readonly metrics: MetricsService,
+    private readonly analytics: AnalyticsService,
+    private readonly billing: BillingService,
   ) {}
+
+  async billingCycle(now = new Date()): Promise<number> {
+    return this.billing.generateInvoices(now);
+  }
+
+  /** Hourly: refresh today's and yesterday's daily aggregates (late events are folded in). */
+  async aggregateAnalytics(now = new Date()): Promise<number> {
+    return (await this.analytics.aggregateDay(now)) + (await this.analytics.aggregateDay(new Date(now.getTime() - 86400000)));
+  }
 
   async everyMinute(): Promise<Record<string, number>> {
     const now = new Date();
