@@ -2,13 +2,25 @@
 
 _Last updated: 2026-09-29_
 
-## Current phase
-Phase 12 — Integrations/webhooks/worker/reconciliation (Phases 1–11 complete).
+## Resume instructions (read first)
+1. `git log --oneline | head -20`, `git status` on branch `claude/compassionate-allen-kn8zop`.
+2. Start deps: `docker compose -f infra/docker-compose.yml up -d` (or local PostgreSQL 18 + Redis), `cp .env.example .env`
+   and fill local values, then `pnpm install && pnpm db:migrate && pnpm db:seed`.
+3. Health: `pnpm verify` (build + typecheck + lint + secret scan) and `pnpm test` must be green before new work.
+4. Continue at **Next task** below. Never restart completed phases.
+
+## Current phase / task
+- Phase: 14 — Admin, verification, fraud, disputes, audit (Phases 1–13 complete).
+- Task: admin console API (users/tenants/verification/ledger ops with dual approval), fraud signals → cases, disputes.
+
+## Last successful checkpoint
+- CI run #8 (commit c4566eb, Phase 12) — **success**. Run #7 failed on a test-file type error that was fixed in c4566eb.
+- Local: `pnpm verify` clean; API integration tests 78/78, domain 53/53, config 5/5, database 8/8.
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
 
-## Completed
+## Completed phases & features
 - Monorepo (pnpm workspaces): apps/{api,worker,web}, packages/{domain,config,api-client,ui,testing,eslint-config,tsconfig}, database/.
 - `@codek/domain`: money (bigint minor units, decimal.js), commission engine, fee engine, attribution engine,
   code normalization/generation, state machines, double-entry postings, RBAC catalogue, normalized event contracts,
@@ -58,9 +70,31 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   clawback netting, minimum threshold, readiness, risk-review block, per-creator lock), provider attempts with retry
   and final-failure fund return, cancellation, BullMQ producer — TESTED (apps/api/test/payouts.test.ts).
 
+- Phase 12 (integrations/webhooks/worker): integration lifecycle (test mode before live, pause, disconnect keeps
+  history), AES-256-GCM secret store, custom signed-webhook adapter (HMAC + timestamp) and Shopify adapter (HMAC,
+  cumulative refunds; IMPLEMENTED — CREDENTIAL REQUIRED for live), webhook pipeline (signature → replay → idempotency →
+  raw storage → queue → normalize → conversion), DLQ, admin replay, sweeper, reconciliation (provider orders + ledger/
+  payout internal), transactional outbox dispatcher, scheduled jobs, Prometheus metrics, worker app — TESTED
+  (apps/api/test/webhooks.test.ts; worker boot verified locally).
+- Phase 13 (collaboration): outbox-driven notifications with per-type preferences (in-app/email, idempotent),
+  partnership-scoped messaging (rate limits, reports, moderation hides without deleting), secure uploads (allowlist +
+  magic-byte sniffing, private storage, ownership-checked attach/download), deliverables & submissions
+  (changes-requested/resubmit/approve), content rights view — TESTED (apps/api/test/collaboration.test.ts).
+
 ## Next task
-Phase 12 — integrations (adapters, lifecycle, encrypted credentials), webhook ingestion (signature, replay,
-idempotency, raw storage, queue, DLQ), worker app, outbox dispatcher, reconciliation.
+Phase 14 — admin module (users, businesses, creators, campaigns, conversions, ledger view, manual adjustments with dual
+approval, verification review), fraud signals/flags/cases, disputes with evidence/hold/decision/adjustment, audit log API.
+Then Phase 15 analytics, 16 billing, 17 web app, 18 hardening/E2E/load/backup, 19 deployment.
+
+## Tests
+- Passing: domain (53), config (5), database invariants (8), API integration (78). Failing: none.
+
+## Known issues / blockers
+- None blocking. External credentials required for live providers (see below). Decisions pending: docs/DECISIONS.md.
+
+## External credentials required (IMPLEMENTED — CREDENTIAL REQUIRED)
+- PayPal Payouts (PAYPAL_CLIENT_ID/SECRET) · SMTP email · S3-compatible storage · Shopify app webhook secret/Admin API
+  token per merchant · (optional) AWS Secrets Manager backend (NOT CONFIGURED in this build).
 
 ## Environment notes
-- Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).
+- Dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 in Docker (`codek-pg`), Redis 7.0 system service.

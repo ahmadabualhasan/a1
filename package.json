@@ -2,7 +2,7 @@
   "name": "codek",
   "private": true,
   "version": "0.1.0",
-  "description": "CODEK — Creator–Business Partnership Marketplace + Attribution Infrastructure + Commission & Payout Platform",
+  "description": "CODEK \u2014 Creator\u2013Business Partnership Marketplace + Attribution Infrastructure + Commission & Payout Platform",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.12 <27"
@@ -23,7 +23,8 @@
     "dev:worker": "pnpm --filter @codek/worker dev",
     "dev:web": "pnpm --filter @codek/web dev",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "verify": "pnpm -r --workspace-concurrency=1 run build && pnpm typecheck && pnpm lint && bash infra/scripts/check-secrets.sh"
   },
   "devDependencies": {
     "prettier": "3.6.2",

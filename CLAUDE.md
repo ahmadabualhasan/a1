@@ -4,7 +4,7 @@
    attribution, legal or security rules; record open questions in `docs/DECISIONS.md` as **DECISION NEEDED**.
 2. On every session start: read `docs/IMPLEMENTATION_STATUS.md` (resume point), `git log --oneline | head`, then run the
    health checks listed there before continuing from the exact unfinished task.
-3. Loop per slice: inspect → plan → implement → migrate → test → security check → lint/typecheck → review diff →
+3. Loop per slice: inspect → plan → implement → migrate → test → security check → `pnpm verify` (build+typecheck+lint+secret scan, mandatory before every push) → review diff →
    update docs/status → commit → push.
 4. Never: float money, client-side financial authority, mutating ledger history, frontend authorization, committed secrets,
    skipping/deleting tests to get green.

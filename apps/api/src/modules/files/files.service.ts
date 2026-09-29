@@ -1,8 +1,12 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { File, PrismaClient } from '@codek/database';
 import { PRISMA } from '../../prisma/prisma.service';
 import { AccessService } from '../../access/access.service';
-import { notFound } from '../../common/errors';
+import { ApiError, notFound } from '../../common/errors';
+import { StorageService } from '../../storage/storage.service';
+import { AuditService } from '../../audit/audit.service';
+import { ALLOWED_UPLOADS, sniffMatches, type UploadPurpose } from './file-types';
 import type { Principal } from '../../auth/principal';
 
 /** Object-level read authorization for stored files by owner type. */
@@ -11,7 +15,35 @@ export class FilesService {
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     private readonly access: AccessService,
+    private readonly storage: StorageService,
+    private readonly audit: AuditService,
   ) {}
+
+  /** Store an uploaded file privately, owned by the uploading user until attached to a domain object. */
+  async upload(p: Principal, file: { buffer: Buffer; mimetype: string; size: number } | undefined, purpose: UploadPurpose, maxBytes: number) {
+    if (!file) throw new ApiError('VALIDATION_FAILED', 'Choose a file to upload');
+    if (file.size > maxBytes) throw new ApiError('PAYLOAD_TOO_LARGE', 'The file is too large');
+    if (!ALLOWED_UPLOADS[file.mimetype]) throw new ApiError('VALIDATION_FAILED', 'This file type is not supported. Use PNG, JPEG, WebP, PDF or MP4.');
+    if (!sniffMatches(file.mimetype, file.buffer)) throw new ApiError('VALIDATION_FAILED', 'The file content does not match its type');
+    const id = randomUUID();
+    const key = `uploads/${p.userId}/${purpose}/${id}.${ALLOWED_UPLOADS[file.mimetype]!.ext}`;
+    const stored = await this.storage.put(key, file.buffer, file.mimetype);
+    const row = await this.prisma.file.create({
+      data: { id, ownerType: 'user', ownerId: p.userId, storageKey: key, mimeType: file.mimetype, sizeBytes: BigInt(stored.size), checksum: stored.checksum, purpose, visibility: 'private', uploadedBy: p.userId },
+      select: { id: true, mimeType: true, sizeBytes: true, purpose: true, createdAt: true },
+    });
+    await this.audit.record({ actorUserId: p.userId, action: 'file.uploaded', objectType: 'file', objectId: id, after: { purpose, mimeType: file.mimetype, size: stored.size } });
+    return row;
+  }
+
+  /** Attach a user-owned upload to a domain object (partnership/dispute/...). Only the uploader can attach it. */
+  async claim(tx: Pick<PrismaClient, 'file'>, p: Principal, fileId: string, owner: { ownerType: string; ownerId: string }, purpose: UploadPurpose): Promise<void> {
+    const f = await tx.file.findUnique({ where: { id: fileId } });
+    if (!f || f.uploadedBy !== p.userId || f.deletedAt || f.purpose !== purpose) throw new ApiError('VALIDATION_FAILED', 'File not found or not usable here', { field: 'fileId' });
+    if (f.ownerType === owner.ownerType && f.ownerId === owner.ownerId) return;
+    if (f.ownerType !== 'user') throw new ApiError('VALIDATION_FAILED', 'File is already attached elsewhere', { field: 'fileId' });
+    await tx.file.update({ where: { id: fileId }, data: { ownerType: owner.ownerType, ownerId: owner.ownerId, visibility: 'restricted' } });
+  }
 
   async assertCanRead(p: Principal, file: File): Promise<void> {
     if (file.visibility === 'public') return;

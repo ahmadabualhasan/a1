@@ -60,6 +60,9 @@ export class Client {
   async patch(url: string, body?: object): Promise<request.Response> {
     return this.capture(await this.withCookies(this.ctx.http().patch(url)).send(body ?? {}));
   }
+  async put(url: string, body?: object): Promise<request.Response> {
+    return this.capture(await this.withCookies(this.ctx.http().put(url)).send(body ?? {}));
+  }
   async delete(url: string): Promise<request.Response> {
     return this.capture(await this.withCookies(this.ctx.http().delete(url)));
   }
