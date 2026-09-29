@@ -57,6 +57,7 @@ export type EntryType =
   | 'commission_reversed'
   | 'commission_clawback'
   | 'clawback_netted'
+  | 'clawback_netting_reversed'
   | 'funding_received'
   | 'funding_reversed'
   | 'payout_requested'
@@ -190,6 +191,13 @@ export const Postings = {
     return build('clawback_netted', currency, [
       dr(cre('creator_available', creatorId, currency), amountMinor),
       cr(cre('creator_clawback_receivable', creatorId, currency), amountMinor),
+    ]);
+  },
+  /** A payout that netted a clawback failed or was cancelled: the creator owes the clawback again. */
+  clawbackNettingReversed(creatorId: string, currency: string, amountMinor: bigint): Posting {
+    return build('clawback_netting_reversed', currency, [
+      dr(cre('creator_clawback_receivable', creatorId, currency), amountMinor),
+      cr(cre('creator_available', creatorId, currency), amountMinor),
     ]);
   },
   fundingReceived(businessId: string, currency: string, amountMinor: bigint): Posting {

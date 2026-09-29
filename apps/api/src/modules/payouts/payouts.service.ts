@@ -215,9 +215,25 @@ export class PayoutsService {
     await this.outbox.enqueue(tx, { eventType: 'PayoutProcessed', aggregateType: 'payout', aggregateId: payout.id, payload: { payoutId: payout.id, creatorId: payout.creatorId, amountMinor: payout.amountMinor, currency: payout.currency } });
   }
 
+  /**
+   * Undo a payout request in the ledger: the net amount returns from payout clearing, and any clawback that was netted
+   * against it becomes outstanding again. The creator's available balance then equals the gross of the commissions
+   * that become available again, and the clawback is recovered by the next payout.
+   */
+  private async returnFunds(tx: TransactionClient, payout: Payout, kind: 'failed' | 'cancelled', description: string): Promise<void> {
+    await this.ledger.post(tx, Postings.payoutFailed(payout.creatorId, payout.currency, payout.amountMinor), { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:${kind}`, description });
+    const netted = await tx.ledgerEntryLine.findFirst({
+      where: { direction: 'credit', entry: { idempotencyKey: `payout:${payout.id}:clawback_netted` } },
+      select: { amountMinor: true },
+    });
+    if (netted && netted.amountMinor > 0n) {
+      await this.ledger.post(tx, Postings.clawbackNettingReversed(payout.creatorId, payout.currency, netted.amountMinor), { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:clawback_netting_reversed`, description: 'Clawback netting reversed because the payout did not complete' });
+    }
+  }
+
   /** Final failure: funds return to the creator's available balance; commissions become available again. */
   private async markFailed(tx: TransactionClient, payout: Payout, errorCode: string): Promise<void> {
-    await this.ledger.post(tx, Postings.payoutFailed(payout.creatorId, payout.currency, payout.amountMinor), { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:failed`, description: `Payout failed (${errorCode})` });
+    await this.returnFunds(tx, payout, 'failed', `Payout failed (${errorCode})`);
     await tx.payout.update({ where: { id: payout.id }, data: { status: 'failed', failureReasonCode: errorCode, processedAt: new Date(), version: { increment: 1 } } });
     await tx.commissionCalculation.updateMany({ where: { payoutItems: { some: { payoutId: payout.id } }, status: { in: ['payout_requested', 'processing'] } }, data: { status: 'available' } });
     await this.audit.record({ actorType: 'system', action: 'payout.failed', objectType: 'payout', objectId: payout.id, reason: errorCode }, tx);
@@ -232,7 +248,7 @@ export class PayoutsService {
       if (!rows[0] || rows[0].creator_id !== creatorId) throw notFound('Payout');
       assertTransition(PayoutMachine, rows[0].status as PayoutStatus, 'cancelled');
       const payout = await tx.payout.findUniqueOrThrow({ where: { id: payoutId } });
-      await this.ledger.post(tx, Postings.payoutFailed(payout.creatorId, payout.currency, payout.amountMinor), { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:cancelled`, description: 'Payout cancelled before processing' });
+      await this.returnFunds(tx, payout, 'cancelled', 'Payout cancelled before processing');
       await tx.payout.update({ where: { id: payoutId }, data: { status: 'cancelled', version: { increment: 1 } } });
       await tx.commissionCalculation.updateMany({ where: { payoutItems: { some: { payoutId } }, status: 'payout_requested' }, data: { status: 'available' } });
       await this.audit.record({ actorUserId: p.userId, action: 'payout.cancelled', objectType: 'payout', objectId: payoutId }, tx);

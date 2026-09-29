@@ -165,6 +165,42 @@ describe('payouts', () => {
     e = await s.creator.client.get('/api/v1/creator/earnings');
     expect(e.body.data.currencies[0]).toMatchObject({ clawbackOutstandingMinor: 0 });
     expect((await ledger.verifyInvariants()).ok).toBe(true);
+    // Cancelling a payout that netted a clawback restores the clawback; the next payout nets it again.
+    const cancelled = await s.creator.client.post(`/api/v1/creator/payouts/${p2.body.data.id}/cancel`);
+    expect(cancelled.body.data.status).toBe('cancelled');
+    e = await s.creator.client.get('/api/v1/creator/earnings');
+    expect(e.body.data.currencies[0]).toMatchObject({ availableMinor: 1500, clawbackOutstandingMinor: 1500 });
+    const p3 = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
+    expect(p3.status).toBe(201);
+    expect(p3.body.data.amountMinor).toBe(1500);
+    expect((await ledger.verifyInvariants()).ok).toBe(true);
+  });
+
+  it('a failed payout that netted a clawback returns both the payout and the netted clawback', async () => {
+    const s = await setupPartnership(ctx, { holdPeriodDays: 0 });
+    await s.creator.client.patch('/api/v1/creator/payout-method', { type: 'paypal', email: 'c@paypal.example' });
+    const ev = (type: string, ref: string, extra: Record<string, unknown> = {}) =>
+      normalizedOrderSchema.parse({ eventType: type, externalEventId: `${type}-${randomUUID()}`, externalRef: ref, occurredAt: new Date().toISOString(), currency: 'JOD', grossMinor: 10000, discountCodes: [s.code], ...extra });
+    const ref1 = `o-${randomUUID()}`;
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_CREATED', ref1) });
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_PAID', ref1) });
+    await s.live.client.post(`/api/v1/businesses/${s.live.businessId}/funding`, { amountMinor: 10000, currency: 'JOD', fundingMethod: 'sandbox' }, { 'Idempotency-Key': key() });
+    const p1 = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
+    await payouts.process(p1.body.data.id);
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_REFUNDED', ref1, { refundedTotalMinor: 10000 }) });
+    const ref2 = `o-${randomUUID()}`;
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_CREATED', ref2, { grossMinor: 20000 }) });
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_PAID', ref2) });
+    // The sandbox provider fails permanently for this recipient.
+    await s.creator.client.patch('/api/v1/creator/payout-method', { type: 'paypal', email: 'fail@paypal.example' });
+    const p2 = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
+    expect(p2.body.data.amountMinor).toBe(1500);
+    expect((await payouts.process(p2.body.data.id)).status).toBe('failed');
+    const e = await s.creator.client.get('/api/v1/creator/earnings');
+    expect(e.body.data.currencies[0]).toMatchObject({ availableMinor: 1500, clawbackOutstandingMinor: 1500, payoutInProgressMinor: 0 });
+    const available = await ctx.prisma.commissionCalculation.count({ where: { partnershipId: s.partnershipId, status: 'available' } });
+    expect(available).toBe(1);
+    expect((await ledger.verifyInvariants()).ok).toBe(true);
   });
 
   it('payout blocked without payout method, during risk review, below minimum; creators isolated', async () => {
