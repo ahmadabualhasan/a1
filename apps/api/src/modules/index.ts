@@ -16,6 +16,10 @@ import { JobsModule } from '../jobs/jobs.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { DeliverablesModule } from './deliverables/deliverables.module';
+import { FraudModule } from './fraud/fraud.module';
+import { DisputesModule } from './disputes/disputes.module';
+import { LegalModule } from './legal/legal.module';
+import { AdminModule } from './admin/admin.module';
 
 /** Domain modules of the modular monolith (spec §18). Registered here in dependency order. */
-export const DOMAIN_MODULES: Array<Type | DynamicModule> = [BusinessesModule, CreatorsModule, CatalogModule, CampaignsModule, PromotionModule, PartnershipsModule, FilesModule, FinanceModule, TrackingModule, ConversionsModule, FundingModule, PayoutsModule, IntegrationsModule, JobsModule, NotificationsModule, MessagingModule, DeliverablesModule];
+export const DOMAIN_MODULES: Array<Type | DynamicModule> = [BusinessesModule, CreatorsModule, CatalogModule, CampaignsModule, PromotionModule, PartnershipsModule, FilesModule, FinanceModule, TrackingModule, ConversionsModule, FundingModule, PayoutsModule, IntegrationsModule, JobsModule, NotificationsModule, MessagingModule, DeliverablesModule, FraudModule, DisputesModule, LegalModule, AdminModule];

@@ -10,8 +10,9 @@ _Last updated: 2026-09-29_
 4. Continue at **Next task** below. Never restart completed phases.
 
 ## Current phase / task
-- Phase: 14 — Admin, verification, fraud, disputes, audit (Phases 1–13 complete).
-- Task: admin console API (users/tenants/verification/ledger ops with dual approval), fraud signals → cases, disputes.
+- Phase: 15 — Analytics & reporting (Phases 1–14 complete).
+- Task: KPI/funnel endpoints with provenance and verified/self-reported breakdown, ledger reconciliation of totals,
+  CSV exports, daily aggregation job.
 
 ## Last successful checkpoint
 - CI run #8 (commit c4566eb, Phase 12) — **success**. Run #7 failed on a test-file type error that was fixed in c4566eb.
@@ -81,13 +82,20 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   magic-byte sniffing, private storage, ownership-checked attach/download), deliverables & submissions
   (changes-requested/resubmit/approve), content rights view — TESTED (apps/api/test/collaboration.test.ts).
 
+- Phase 14 (admin/trust/risk): admin console API (overview queues, users suspend/reactivate/grant role, tenants,
+  verification cases & status, social metric verification, campaigns/partnerships/conversions/payouts/fundings/
+  webhooks/integrations/reconciliations lists, ledger balances/entries), dual-approval admin actions (manual ledger
+  adjustments, commission reversal, re-attribution, platform role grant, user anonymization), fraud signals
+  (self-referral, repeated orders, conversion spike, code leakage, staff redemptions, refund spike, attribution
+  conflict, webhook replay) → flags → cases with holds, disputes lifecycle with evidence/hold/decision/adjustment,
+  audit log API + chain verification, settings/flags, legal document versioning & re-acceptance, privacy requests,
+  data export and anonymization — TESTED (apps/api/test/admin.test.ts).
+
 ## Next task
-Phase 14 — admin module (users, businesses, creators, campaigns, conversions, ledger view, manual adjustments with dual
-approval, verification review), fraud signals/flags/cases, disputes with evidence/hold/decision/adjustment, audit log API.
-Then Phase 15 analytics, 16 billing, 17 web app, 18 hardening/E2E/load/backup, 19 deployment.
+Phase 15 analytics → 16 billing/pricing → 17 web app + api-client → 18 hardening/E2E/load/backup → 19 deployment.
 
 ## Tests
-- Passing: domain (53), config (5), database invariants (8), API integration (78). Failing: none.
+- Passing: domain (53), config (5), database invariants (8), API integration (89). Failing: none.
 
 ## Known issues / blockers
 - None blocking. External credentials required for live providers (see below). Decisions pending: docs/DECISIONS.md.
