@@ -1,0 +1,25 @@
+{
+  "name": "@codek/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CODEK shared accessible React UI components (Tailwind CSS). Source package transpiled by apps/web.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "echo \"source package (transpiled by next)\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@codek/eslint-config": "workspace:*",
+    "@codek/tsconfig": "workspace:*",
+    "@types/react": "19.3.0",
+    "eslint": "9.39.5",
+    "react": "19.3.0",
+    "typescript": "5.9.3",
+    "globals": "16.5.0"
+  }
+}
