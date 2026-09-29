@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule, type OpenAPIObject } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
+import express from 'express';
 import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
@@ -11,15 +12,25 @@ import { ENV } from './config/config.module';
 import { csrfMiddleware } from './common/csrf.middleware';
 import { requestIdMiddleware } from './common/request-id.middleware';
 import { COOKIE_PREFIX } from './auth/better-auth';
+import { MetricsService } from './observability/metrics.service';
+import { httpMetricsMiddleware } from './observability/http-metrics.middleware';
 
 export async function createApp(): Promise<NestExpressApplication> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true, bufferLogs: true });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false, bufferLogs: true });
   const env = app.get<Env>(ENV);
   app.useLogger(app.get(Logger));
   app.set('trust proxy', env.TRUST_PROXY ? 1 : false);
   app.disable('x-powered-by');
-  app.useBodyParser('json', { limit: '1mb' });
   app.use(requestIdMiddleware(env.HASH_PEPPER));
+  app.use(httpMetricsMiddleware(app.get(MetricsService)));
+  // Webhooks keep the exact raw bytes (signature verification) and are never JSON-parsed by the framework,
+  // so malformed payloads can still be stored as evidence.
+  app.use('/api/v1/webhooks', express.raw({ type: () => true, limit: '1mb' }), (req: express.Request & { rawBody?: Buffer }, _res: express.Response, next: express.NextFunction) => {
+    req.rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    next();
+  });
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: false, limit: '100kb' }));
   app.use(
     helmet({
       contentSecurityPolicy: { directives: { defaultSrc: ["'none'"], frameAncestors: ["'none'"], imgSrc: ["'self'", 'data:'], scriptSrc: ["'self'"], styleSrc: ["'self'", "'unsafe-inline'"] } },

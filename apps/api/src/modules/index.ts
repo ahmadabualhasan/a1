@@ -11,6 +11,8 @@ import { TrackingModule } from './tracking/tracking.module';
 import { ConversionsModule } from './conversions/conversions.module';
 import { FundingModule } from './funding/funding.module';
 import { PayoutsModule } from './payouts/payouts.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { JobsModule } from '../jobs/jobs.module';
 
 /** Domain modules of the modular monolith (spec §18). Registered here in dependency order. */
-export const DOMAIN_MODULES: Array<Type | DynamicModule> = [BusinessesModule, CreatorsModule, CatalogModule, CampaignsModule, PromotionModule, PartnershipsModule, FilesModule, FinanceModule, TrackingModule, ConversionsModule, FundingModule, PayoutsModule];
+export const DOMAIN_MODULES: Array<Type | DynamicModule> = [BusinessesModule, CreatorsModule, CatalogModule, CampaignsModule, PromotionModule, PartnershipsModule, FilesModule, FinanceModule, TrackingModule, ConversionsModule, FundingModule, PayoutsModule, IntegrationsModule, JobsModule];

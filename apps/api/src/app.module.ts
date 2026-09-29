@@ -15,6 +15,10 @@ import { StorageModule } from './storage/storage.service';
 import { FeePlanModule } from './billing/fee-plan.service';
 import { QueueModule } from './queue/queue.service';
 import { PaymentsModule } from './payments/payments.module';
+import { SecretsModule } from './secrets/secret-store';
+import { MetricsModule } from './observability/metrics.service';
+import { MetricsController } from './observability/metrics.controller';
+import { OutboxDispatchModule } from './outbox/outbox.dispatcher';
 import { AuthGuard } from './auth/auth.guard';
 import { RateLimitGuard } from './common/rate-limit';
 import { HttpExceptionFilter } from './common/http-exception.filter';
@@ -51,12 +55,15 @@ export const CORE_MODULES: Array<Type | DynamicModule> = [
   FeePlanModule,
   QueueModule,
   PaymentsModule,
+  SecretsModule,
+  MetricsModule,
+  OutboxDispatchModule,
   AuthModule,
 ];
 
 @Module({
   imports: [...CORE_MODULES, ...DOMAIN_MODULES],
-  controllers: [HealthController],
+  controllers: [HealthController, MetricsController],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RateLimitGuard },

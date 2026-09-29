@@ -4,6 +4,7 @@ import { normalizedOrderSchema } from '@codek/domain';
 import { ConversionsService } from '../src/modules/conversions/conversions.service';
 import { LedgerService } from '../src/modules/finance/ledger.service';
 import { PayoutsService } from '../src/modules/payouts/payouts.service';
+import { SettingsService } from '../src/settings/settings.service';
 import { registerAdmin, setupPartnership, startApp, type TestContext } from './harness';
 
 let ctx: TestContext;
@@ -176,7 +177,7 @@ describe('payouts', () => {
     expect((await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() })).body.error.details.reason).toBe('RISK_REVIEW');
     await ctx.prisma.fraudFlag.updateMany({ where: { subjectId: s.creator.creatorId }, data: { status: 'dismissed' } });
     await ctx.prisma.systemSetting.update({ where: { key: 'payouts.minimum_minor' }, data: { valueJson: { default: 0, JOD: 5000 } } });
-    const settings = (await import('../src/settings/settings.service')).SettingsService;
+    const settings = SettingsService;
     ctx.app.get(settings).invalidate();
     const low = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
     expect(low.body.error.details.minimumMinor).toBe(5000);

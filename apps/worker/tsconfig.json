@@ -1,0 +1,5 @@
+{
+  "extends": "@codek/tsconfig/nest.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src", "module": "nodenext", "moduleResolution": "nodenext", "types": ["node"], "noUncheckedIndexedAccess": false },
+  "include": ["src"]
+}
