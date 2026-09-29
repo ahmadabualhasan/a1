@@ -3,7 +3,7 @@
 _Last updated: 2026-09-29_
 
 ## Current phase
-Phase 6 — Applications/partnerships (Phases 1–5 complete).
+Phase 8 — Tracking/attribution/conversions/ledger (Phases 1–7 complete).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -33,8 +33,17 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   paused→ended→archived) with publish gates, admin review, scheduler transitions, marketplace cards/filters,
   public vs member detail views — TESTED (apps/api/test/campaigns.test.ts).
 
+- Phase 6 (applications/partnerships): apply (eligibility, deadline, cap, ordered waitlist), accept/reject with
+  row-locked capacity, invitations, partnerships with immutable hashed term snapshots (commission rule, attribution
+  policy, fee plan, hold, rights, deliverables, legal versions), creator re-confirmation when terms changed,
+  status control, timeline — TESTED incl. concurrent acceptance (apps/api/test/partnerships.test.ts).
+- Phase 7 (promotion assets): concurrency-safe unique codes (ON CONFLICT), referral links with allowlisted
+  destination host, QR PNG stored via storage abstraction (local/S3), authorized file download, business code
+  pause/resume/revoke, expiry — TESTED.
+
 ## Next task
-Phase 6/7 — Applications, invitations, partnerships with frozen term snapshots; promotion codes, referral links, QR.
+Phases 8–10 — tracking (redirect + click API), attribution touchpoints/decisions, conversion pipeline, commission
+engine persistence, double-entry ledger service.
 
 ## Environment notes
 - Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).

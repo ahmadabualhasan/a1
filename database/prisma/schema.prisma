@@ -508,6 +508,8 @@ model CampaignApplication {
   reviewedBy       String?           @map("reviewed_by") @db.Uuid
   rejectionReason  String?           @map("rejection_reason")
   waitlistPosition Int?              @map("waitlist_position")
+  /// Campaign commercial config version the creator applied under; a later change requires re-confirmation.
+  campaignConfigVersion Int          @default(1) @map("campaign_config_version")
   version          Int               @default(1)
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
@@ -536,6 +538,7 @@ model CampaignInvitation {
   message           String?
   proposedTermsJson Json?            @map("proposed_terms_json")
   invitedBy         String           @map("invited_by") @db.Uuid
+  campaignConfigVersion Int          @default(1) @map("campaign_config_version")
   expiresAt         DateTime?        @map("expires_at") @db.Timestamptz(6)
   respondedAt       DateTime?        @map("responded_at") @db.Timestamptz(6)
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)

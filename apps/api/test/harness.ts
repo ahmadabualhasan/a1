@@ -166,3 +166,21 @@ export async function setupLiveCampaign(ctx: TestContext, overrides: Record<stri
   if (pub.status !== 200) throw new Error(`publish failed ${JSON.stringify(pub.body)}`);
   return { ...biz, catalogItemId: item.body.data.id as string, campaignId: camp.body.data.id as string, campaign: pub.body.data };
 }
+
+/** Live campaign + creator who applied and was accepted → active partnership with assets. */
+export async function setupPartnership(ctx: TestContext, campaignOverrides: Record<string, unknown> = {}) {
+  const live = await setupLiveCampaign(ctx, campaignOverrides);
+  const creator = await setupCreator(ctx);
+  const app = await creator.client.post(`/api/v1/campaigns/${live.campaignId}/apply`, { message: 'I love this product' });
+  if (app.status !== 201) throw new Error(`apply failed ${JSON.stringify(app.body)}`);
+  const acc = await live.client.post(`/api/v1/applications/${app.body.data.id}/accept`);
+  if (acc.status !== 200) throw new Error(`accept failed ${JSON.stringify(acc.body)}`);
+  return {
+    live,
+    creator,
+    applicationId: app.body.data.id as string,
+    partnershipId: acc.body.data.partnership.id as string,
+    code: acc.body.data.assets.code as string,
+    referralToken: acc.body.data.assets.token as string,
+  };
+}
