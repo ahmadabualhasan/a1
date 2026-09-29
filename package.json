@@ -1,0 +1,32 @@
+{
+  "name": "codek",
+  "private": true,
+  "version": "0.1.0",
+  "description": "CODEK — Creator–Business Partnership Marketplace + Attribution Infrastructure + Commission & Payout Platform",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12 <27"
+  },
+  "scripts": {
+    "build": "pnpm -r --workspace-concurrency=1 run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r --workspace-concurrency=1 run test",
+    "test:unit": "pnpm --filter @codek/domain test",
+    "test:api": "pnpm --filter @codek/api test",
+    "test:e2e": "pnpm --filter @codek/web test:e2e",
+    "db:generate": "pnpm --filter @codek/database generate",
+    "db:migrate": "pnpm --filter @codek/database migrate:deploy",
+    "db:migrate:dev": "pnpm --filter @codek/database migrate:dev",
+    "db:seed": "pnpm --filter @codek/database seed",
+    "dev:api": "pnpm --filter @codek/api dev",
+    "dev:worker": "pnpm --filter @codek/worker dev",
+    "dev:web": "pnpm --filter @codek/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+dist
+.next
+coverage
+pnpm-lock.yaml
+database/src/generated
+database/migrations
+packages/api-client/src/schema.d.ts

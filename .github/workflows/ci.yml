@@ -1,0 +1,108 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: codek
+          POSTGRES_PASSWORD: codek_ci_password
+          POSTGRES_DB: codek_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U codek -d codek_test" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      APP_ENV: test
+      NODE_ENV: test
+      DATABASE_URL: postgresql://codek:codek_ci_password@localhost:5432/codek_test?schema=public
+      TEST_DATABASE_URL: postgresql://codek:codek_ci_password@localhost:5432/codek_test?schema=public
+      REDIS_URL: redis://localhost:6379
+      # CI-only throwaway values (not secrets of any environment).
+      AUTH_SECRET: ci-only-auth-secret-not-used-anywhere-else-000000
+      HASH_PEPPER: ci-only-pepper-0000000000
+      SECRETS_MASTER_KEY: Y2ktb25seS1rZXktMzItYnl0ZXMtbG9uZy0wMDAwMDA=
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /tmp/codek-storage
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm build
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm db:migrate
+      - run: pnpm test
+      - name: Secret scan (committed files)
+        run: bash infra/scripts/check-secrets.sh
+      - name: Dependency audit (high+)
+        run: pnpm audit --audit-level high || echo "::warning::pnpm audit reported vulnerabilities; see log"
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build-test
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: codek
+          POSTGRES_PASSWORD: codek_ci_password
+          POSTGRES_DB: codek_e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U codek -d codek_e2e" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    env:
+      APP_ENV: test
+      NODE_ENV: production
+      DATABASE_URL: postgresql://codek:codek_ci_password@localhost:5432/codek_e2e?schema=public
+      REDIS_URL: redis://localhost:6379
+      AUTH_SECRET: ci-only-auth-secret-not-used-anywhere-else-000000
+      HASH_PEPPER: ci-only-pepper-0000000000
+      SECRETS_MASTER_KEY: Y2ktb25seS1rZXktMzItYnl0ZXMtbG9uZy0wMDAwMDA=
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /tmp/codek-storage
+      API_INTERNAL_URL: http://localhost:4000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm build
+      - run: pnpm db:migrate
+      - run: pnpm db:seed
+      - run: npx playwright install --with-deps chromium
+      - run: pnpm test:e2e

@@ -1,0 +1,13 @@
+{
+  "name": "@codek/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.mjs",
+  "exports": { ".": "./index.mjs" },
+  "dependencies": {
+    "@eslint/js": "9.39.1",
+    "typescript-eslint": "8.46.3",
+    "globals": "16.5.0"
+  },
+  "peerDependencies": { "eslint": "^9" }
+}
