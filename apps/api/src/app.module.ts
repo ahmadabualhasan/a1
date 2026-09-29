@@ -10,6 +10,7 @@ import { AuditModule } from './audit/audit.service';
 import { OutboxModule } from './outbox/outbox.service';
 import { AccessModule } from './access/access.service';
 import { AuthModule } from './auth/auth.module';
+import { SettingsModule } from './settings/settings.service';
 import { AuthGuard } from './auth/auth.guard';
 import { RateLimitGuard } from './common/rate-limit';
 import { HttpExceptionFilter } from './common/http-exception.filter';
@@ -41,6 +42,7 @@ export const CORE_MODULES: Array<Type | DynamicModule> = [
   AuditModule,
   OutboxModule,
   AccessModule,
+  SettingsModule,
   AuthModule,
 ];
 

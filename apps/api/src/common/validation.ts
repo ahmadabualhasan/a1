@@ -56,3 +56,6 @@ export function slugify(input: string): string {
     .slice(0, 48);
   return base || 'item';
 }
+
+/** ISO-8601 timestamp input (with offset or Z) parsed to Date; stored in UTC. */
+export const isoDate = z.iso.datetime({ offset: true }).transform((s) => new Date(s));

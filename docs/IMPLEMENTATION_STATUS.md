@@ -3,7 +3,7 @@
 _Last updated: 2026-09-29_
 
 ## Current phase
-Phase 5 — Catalog & campaigns (Phases 1–4 complete).
+Phase 6 — Applications/partnerships (Phases 1–5 complete).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -28,8 +28,13 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   (profile, social accounts with provenance, business-facing discovery, performance stats) — TESTED
   (apps/api/test/profiles.test.ts incl. cross-tenant isolation and property-level authorization).
 
+- Phase 5 (catalog/campaigns): catalog CRUD; campaigns with all §3.5A fields, commission rules as immutable
+  versions, attribution policy versioning, eligibility rules, lifecycle (draft→pending_review→published→active→
+  paused→ended→archived) with publish gates, admin review, scheduler transitions, marketplace cards/filters,
+  public vs member detail views — TESTED (apps/api/test/campaigns.test.ts).
+
 ## Next task
-Phase 5 — Catalog items and campaigns (lifecycle, validation gates, commission rule versioning, attribution policy).
+Phase 6/7 — Applications, invitations, partnerships with frozen term snapshots; promotion codes, referral links, QR.
 
 ## Environment notes
 - Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).

@@ -125,3 +125,44 @@ export async function setupCreator(ctx: TestContext): Promise<{ client: Client; 
   if (r.status !== 201) throw new Error(`create creator failed: ${r.status} ${JSON.stringify(r.body)}`);
   return { client, creatorId: r.body.data.id, handle };
 }
+
+export function campaignPayload(catalogItemId: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    catalogItemId,
+    name: 'Summer Glow Serum Launch',
+    description: 'Promote our new vitamin C serum to your audience in Amman.',
+    category: 'beauty',
+    timezone: 'Asia/Amman',
+    participantCap: 5,
+    compensationType: 'gift_commission',
+    productServiceProvided: true,
+    destinationUrl: 'https://shop.acme.example/serum',
+    conversionSourceType: 'webhook_api',
+    fulfillmentMode: 'online',
+    locationCountry: 'JO',
+    locationCity: 'Amman',
+    platforms: ['instagram', 'tiktok'],
+    currency: 'JOD',
+    discountConfig: { type: 'percentage', rate: '0.10' },
+    commission: { type: 'percentage', rate: '0.15', baseType: 'discounted', roundingMode: 'half_up', refundBehavior: 'clawback' },
+    attributionPolicy: { model: 'code_first', windowDays: 30 },
+    holdPeriodDays: 14,
+    deliverables: [{ type: 'instagram_reel', description: 'One 30s reel', dueDays: 7, required: true }],
+    contentRights: { ownership: 'creator', organicAllowed: true, paidAdsAllowed: false, whitelistingAllowed: false, durationDays: 90 },
+    promotionRules: { stackable: false, perCustomerLimit: 1 },
+    ...overrides,
+  };
+}
+
+/** Business with a verified status, a catalog item and a published+active campaign. */
+export async function setupLiveCampaign(ctx: TestContext, overrides: Record<string, unknown> = {}) {
+  const biz = await setupBusiness(ctx);
+  await ctx.prisma.business.update({ where: { id: biz.businessId }, data: { verificationStatus: 'verified' } });
+  const item = await biz.client.post(`/api/v1/businesses/${biz.businessId}/catalog`, { name: 'Vitamin C Serum', type: 'product', priceMinor: 25000, currency: 'JOD' });
+  if (item.status !== 201) throw new Error(`catalog failed ${JSON.stringify(item.body)}`);
+  const camp = await biz.client.post(`/api/v1/businesses/${biz.businessId}/campaigns`, campaignPayload(item.body.data.id, overrides));
+  if (camp.status !== 201) throw new Error(`campaign failed ${JSON.stringify(camp.body)}`);
+  const pub = await biz.client.post(`/api/v1/campaigns/${camp.body.data.id}/publish`);
+  if (pub.status !== 200) throw new Error(`publish failed ${JSON.stringify(pub.body)}`);
+  return { ...biz, catalogItemId: item.body.data.id as string, campaignId: camp.body.data.id as string, campaign: pub.body.data };
+}
