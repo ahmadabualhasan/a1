@@ -3,7 +3,7 @@
 _Last updated: 2026-09-29_
 
 ## Current phase
-Phase 3 — Authentication, sessions, users, roles, permissions, RBAC (Phases 1–2 complete).
+Phase 5 — Catalog & campaigns (Phases 1–4 complete).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -20,8 +20,16 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   migration (balanced/immutable ledger, audit hash chain, no-delete history, check constraints), idempotent reference
   seed — TESTED (database/test/invariants.test.ts, 8 tests on PostgreSQL 18.6).
 
+- Phase 3 (auth/RBAC): NestJS 11 API with standard envelopes, request/correlation ids, pino logging (redaction),
+  helmet, CORS allowlist, CSRF origin check, Redis rate limiting, Better Auth (DB sessions, email verification,
+  reset, TOTP MFA endpoints, change password, session list/revoke), global AuthGuard + AccessService (tenant/object
+  checks), audit service, transactional outbox — TESTED (apps/api/test/auth.test.ts).
+- Phase 4 (profiles): businesses (create/update with optimistic locking, members, verification request), creators
+  (profile, social accounts with provenance, business-facing discovery, performance stats) — TESTED
+  (apps/api/test/profiles.test.ts incl. cross-tenant isolation and property-level authorization).
+
 ## Next task
-Phase 3 — API app (NestJS 11): bootstrap, error envelope, request ids, logging, Better Auth, sessions, RBAC guards.
+Phase 5 — Catalog items and campaigns (lifecycle, validation gates, commission rule versioning, attribution policy).
 
 ## Environment notes
 - Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).

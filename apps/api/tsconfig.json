@@ -1,0 +1,13 @@
+{
+  "extends": "@codek/tsconfig/nest.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+    "noUncheckedIndexedAccess": false,
+    "baseUrl": "."
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}
