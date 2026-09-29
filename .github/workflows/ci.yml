@@ -104,5 +104,5 @@ jobs:
       - run: pnpm build
       - run: pnpm db:migrate
       - run: pnpm db:seed
-      - run: npx playwright install --with-deps chromium
+      - run: pnpm --filter @codek/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
