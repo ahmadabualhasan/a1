@@ -1,0 +1,2121 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// CODEK database schema — spec §19 master entity set + field-level addendum.
+// Conventions: UUID PKs, snake_case tables/columns, timestamptz (UTC), money as
+// BigInt minor units + ISO currency, rates as Decimal, JSONB only for extensible
+// configuration. DB-level invariants (ledger balance, immutability, audit hash
+// chain, check constraints) live in the SQL migrations (see docs/DATABASE.md).
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────────── Identity & access ─────────────────────────────
+
+enum AccountType {
+  business
+  creator
+  admin
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+/// Primary identity (Better Auth "user" model). Email stored lower-cased and unique.
+model User {
+  id               String      @id @default(uuid()) @db.Uuid
+  email            String      @unique
+  emailVerified    Boolean     @default(false) @map("email_verified")
+  emailVerifiedAt  DateTime?   @map("email_verified_at") @db.Timestamptz(6)
+  name             String      @map("display_name")
+  image            String?
+  accountType      AccountType @default(creator) @map("account_type")
+  status           UserStatus  @default(active)
+  twoFactorEnabled Boolean     @default(false) @map("two_factor_enabled")
+  lastLoginAt      DateTime?   @map("last_login_at") @db.Timestamptz(6)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sessions            Session[]
+  accounts            Account[]
+  twoFactors          TwoFactor[]
+  verificationTokens  VerificationToken[]
+  userRoles           UserRole[]
+  businessMemberships BusinessMember[]
+  ownedBusinesses     Business[]               @relation("BusinessOwner")
+  creator             Creator?
+  notifications       Notification[]
+  notificationPrefs   NotificationPreference[]
+  legalAcceptances    LegalAcceptance[]
+
+  @@map("users")
+}
+
+/// DB-backed session (Better Auth "session" model). Raw IPs are not stored (ip_hash only).
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  token      String    @unique
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  ipAddress  String?   @map("ip_address")
+  userAgent  String?   @map("user_agent")
+  ipHash     String?   @map("ip_hash")
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// Authentication provider/credential (Better Auth "account" model).
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  accountId             String    @map("provider_account_id")
+  providerId            String    @map("provider")
+  password              String?   @map("password_hash")
+  accessToken           String?   @map("access_token_ref")
+  refreshToken          String?   @map("refresh_token_ref")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+enum VerificationPurpose {
+  email_verification
+  password_reset
+  mfa_other
+}
+
+/// Email verification / recovery tokens (Better Auth "verification" model; `value` holds the opaque token data).
+model VerificationToken {
+  id         String               @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  userId     String?              @map("user_id") @db.Uuid
+  purpose    VerificationPurpose?
+  expiresAt  DateTime             @map("expires_at") @db.Timestamptz(6)
+  usedAt     DateTime?            @map("used_at") @db.Timestamptz(6)
+  createdAt  DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identifier])
+  @@map("verification_tokens")
+}
+
+/// TOTP / backup codes for MFA (Better Auth twoFactor plugin). Secret is encrypted by Better Auth.
+model TwoFactor {
+  id          String @id @default(uuid()) @db.Uuid
+  userId      String @map("user_id") @db.Uuid
+  secret      String
+  backupCodes String @map("backup_codes")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("two_factors")
+}
+
+enum RoleScope {
+  platform
+  business
+  creator
+}
+
+model Role {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique
+  scope       RoleScope
+  description String?
+
+  permissions     RolePermission[]
+  userRoles       UserRole[]
+  businessMembers BusinessMember[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Platform/creator-scope role assignment (business roles live on business_members). See D-015.
+model UserRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  roleId    String   @map("role_id") @db.Uuid
+  grantedBy String?  @map("granted_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+// ───────────────────────────── Tenants & profiles ─────────────────────────────
+
+enum VerificationStatus {
+  unverified
+  pending
+  verified
+  suspended
+  expired
+}
+
+model Business {
+  id                 String             @id @default(uuid()) @db.Uuid
+  ownerUserId        String             @map("owner_user_id") @db.Uuid
+  legalName          String             @map("legal_name")
+  displayName        String             @map("display_name")
+  slug               String             @unique
+  category           String
+  description        String?
+  country            String             @db.Char(2)
+  city               String?
+  timezone           String
+  websiteUrl         String?            @map("website_url")
+  logoFileId         String?            @map("logo_file_id") @db.Uuid
+  verificationStatus VerificationStatus @default(unverified) @map("verification_status")
+  billingReady       Boolean            @default(false) @map("billing_ready")
+  onboardingComplete Boolean            @default(false) @map("onboarding_complete")
+  /// Hosts that referral destinations for this business may point to (spec §7.3).
+  allowedDestinationHosts String[]      @default([]) @map("allowed_destination_hosts")
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  owner            User               @relation("BusinessOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  members          BusinessMember[]
+  catalogItems     CatalogItem[]
+  campaigns        Campaign[]
+  partnerships     Partnership[]
+  invitations      CampaignInvitation[]
+  promotionCodes   PromotionCode[]
+  commissionRules  CommissionRule[]
+  conversions      Conversion[]
+  fundings         MerchantFunding[]
+  integrations     Integration[]
+  billingCustomers BillingCustomer[]
+
+  @@index([ownerUserId])
+  @@map("businesses")
+}
+
+enum MemberStatus {
+  invited
+  active
+  revoked
+}
+
+model BusinessMember {
+  id         String       @id @default(uuid()) @db.Uuid
+  businessId String       @map("business_id") @db.Uuid
+  userId     String       @map("user_id") @db.Uuid
+  roleId     String       @map("role_id") @db.Uuid
+  status     MemberStatus @default(active)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  role     Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+  @@map("business_members")
+}
+
+model Creator {
+  id                 String             @id @default(uuid()) @db.Uuid
+  userId             String             @unique @map("user_id") @db.Uuid
+  handle             String             @unique
+  displayName        String             @map("display_name")
+  bio                String?
+  avatarFileId       String?            @map("avatar_file_id") @db.Uuid
+  country            String?            @db.Char(2)
+  city               String?
+  languages          String[]           @default([])
+  categories         String[]           @default([])
+  portfolioUrls      String[]           @default([]) @map("portfolio_urls")
+  verificationStatus VerificationStatus @default(unverified) @map("verification_status")
+  onboardingComplete Boolean            @default(false) @map("onboarding_complete")
+  /// Payout readiness (KYC is provider-side; this records readiness state only, spec §10.5).
+  payoutReadiness    String             @default("not_ready") @map("payout_readiness")
+  payoutMethod       Json?              @map("payout_method")
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  socialAccounts SocialAccount[]
+  applications   CampaignApplication[]
+  invitations    CampaignInvitation[]
+  partnerships   Partnership[]
+  promotionCodes PromotionCode[]
+  payouts        Payout[]
+
+  @@map("creators")
+}
+
+enum SocialConnectionStatus {
+  not_connected
+  connected
+  error
+  disconnected
+}
+
+enum MetricVerificationState {
+  verified
+  self_reported
+}
+
+/// Social account with metric provenance (spec §4.3: source, fetched_at, definition/version, verified vs self-reported).
+model SocialAccount {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  creatorId             String                  @map("creator_id") @db.Uuid
+  platform              String
+  platformAccountId     String?                 @map("platform_account_id")
+  handle                String?
+  profileUrl            String?                 @map("profile_url")
+  connectionStatus      SocialConnectionStatus  @default(not_connected) @map("connection_status")
+  verificationState     MetricVerificationState @default(self_reported) @map("verification_state")
+  followerCount         BigInt?                 @map("follower_count")
+  averageViews          BigInt?                 @map("average_views")
+  engagementRate        Decimal?                @map("engagement_rate") @db.Decimal(9, 6)
+  likesAvg              BigInt?                 @map("likes_avg")
+  commentsAvg           BigInt?                 @map("comments_avg")
+  audienceData          Json?                   @map("audience_data")
+  sourcePlatformVersion String?                 @map("source_platform_version")
+  metricDefinitionVersion String?               @map("metric_definition_version")
+  fetchedAt             DateTime?               @map("fetched_at") @db.Timestamptz(6)
+  createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+
+  @@unique([creatorId, platform])
+  @@map("social_accounts")
+}
+
+// ───────────────────────────── Catalog & campaigns ─────────────────────────────
+
+enum CatalogItemType {
+  product
+  service
+  subscription
+  other
+}
+
+model CatalogItem {
+  id          String          @id @default(uuid()) @db.Uuid
+  businessId  String          @map("business_id") @db.Uuid
+  name        String
+  slug        String
+  type        CatalogItemType
+  description String?
+  category    String?
+  priceMinor  BigInt?         @map("price_minor")
+  currency    String?         @db.Char(3)
+  externalRef String?         @map("external_ref")
+  active      Boolean         @default(true)
+  mediaIds    String[]        @default([]) @map("media_ids") @db.Uuid
+  version     Int             @default(1)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business  Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  campaigns Campaign[]
+
+  @@unique([businessId, slug])
+  @@index([businessId, active])
+  @@map("catalog_items")
+}
+
+enum CampaignStatus {
+  draft
+  pending_review
+  published
+  active
+  paused
+  ended
+  archived
+}
+
+enum CompensationType {
+  commission_only
+  gift_commission
+  fixed_fee_commission
+  paid_content
+}
+
+enum ConversionSourceType {
+  webhook_api
+  pos
+  booking_api
+  redemption_interface
+  manual_evidence
+  other
+}
+
+enum FulfillmentMode {
+  online
+  offline
+  hybrid
+}
+
+model Campaign {
+  id                       String               @id @default(uuid()) @db.Uuid
+  businessId               String               @map("business_id") @db.Uuid
+  catalogItemId            String               @map("catalog_item_id") @db.Uuid
+  name                     String
+  slug                     String
+  description              String?
+  imageFileId              String?              @map("image_file_id") @db.Uuid
+  category                 String
+  status                   CampaignStatus       @default(draft)
+  startAt                  DateTime?            @map("start_at") @db.Timestamptz(6)
+  endAt                    DateTime?            @map("end_at") @db.Timestamptz(6)
+  timezone                 String
+  creatorCapacity          Int?                 @map("creator_capacity")
+  participantCap           Int?                 @map("participant_cap")
+  applicationDeadlineAt    DateTime?            @map("application_deadline_at") @db.Timestamptz(6)
+  waitlistEnabled          Boolean              @default(false) @map("waitlist_enabled")
+  compensationType         CompensationType     @map("compensation_type")
+  productServiceProvided   Boolean              @default(false) @map("product_service_provided")
+  fixedFeeMinor            BigInt?              @map("fixed_fee_minor")
+  destinationUrl           String?              @map("destination_url")
+  conversionSourceType     ConversionSourceType @map("conversion_source_type")
+  integrationId            String?              @map("integration_id") @db.Uuid
+  fulfillmentMode          FulfillmentMode      @default(online) @map("fulfillment_mode")
+  locationCountry          String?              @map("location_country") @db.Char(2)
+  locationCity             String?              @map("location_city")
+  platforms                String[]             @default([])
+  currency                 String               @db.Char(3)
+  customerDiscountConfig   Json                 @map("customer_discount_config")
+  commissionRuleId         String?              @map("commission_rule_id") @db.Uuid
+  attributionPolicy        Json                 @map("attribution_policy")
+  attributionPolicyVersion String               @map("attribution_policy_version")
+  holdPeriodDays           Int                  @map("hold_period_days")
+  conversionApprovalMode   String               @default("auto_verified") @map("conversion_approval_mode")
+  deliverableConfig        Json?                @map("deliverable_config")
+  contentRightsConfig      Json?                @map("content_rights_config")
+  promotionRules           Json?                @map("promotion_rules")
+  cancellationRefundConfig Json?                @map("cancellation_refund_config")
+  disclosureRequirements   Json?                @map("disclosure_requirements")
+  legalDocumentVersion     String?              @map("legal_document_version")
+  /// Monotonic version of the commercial configuration; partnerships snapshot a specific version.
+  configVersion            Int                  @default(1) @map("config_version")
+  version                  Int                  @default(1)
+  publishedAt              DateTime?            @map("published_at") @db.Timestamptz(6)
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business          Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  catalogItem       CatalogItem               @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  integration       Integration?              @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  commissionRule    CommissionRule?           @relation(fields: [commissionRuleId], references: [id], onDelete: Restrict)
+  eligibilityRules  CampaignEligibilityRule[]
+  applications      CampaignApplication[]
+  invitations       CampaignInvitation[]
+  partnerships      Partnership[]
+  promotionCodes    PromotionCode[]
+
+  @@unique([businessId, slug])
+  @@index([status, category])
+  @@index([businessId, status])
+  @@map("campaigns")
+}
+
+model CampaignEligibilityRule {
+  id         String  @id @default(uuid()) @db.Uuid
+  campaignId String  @map("campaign_id") @db.Uuid
+  ruleType   String  @map("rule_type")
+  operator   String
+  value      Json
+  enabled    Boolean @default(true)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_eligibility_rules")
+}
+
+enum ApplicationStatus {
+  pending
+  waitlisted
+  accepted
+  rejected
+  withdrawn
+  expired
+}
+
+model CampaignApplication {
+  id               String            @id @default(uuid()) @db.Uuid
+  campaignId       String            @map("campaign_id") @db.Uuid
+  creatorId        String            @map("creator_id") @db.Uuid
+  status           ApplicationStatus @default(pending)
+  message          String?
+  submittedAt      DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  reviewedAt       DateTime?         @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy       String?           @map("reviewed_by") @db.Uuid
+  rejectionReason  String?           @map("rejection_reason")
+  waitlistPosition Int?              @map("waitlist_position")
+  version          Int               @default(1)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  creator  Creator  @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+
+  @@unique([campaignId, creatorId])
+  @@index([campaignId, status])
+  @@map("campaign_applications")
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  declined
+  revoked
+  expired
+}
+
+/// Business-initiated invitations (D-014).
+model CampaignInvitation {
+  id                String           @id @default(uuid()) @db.Uuid
+  campaignId        String           @map("campaign_id") @db.Uuid
+  businessId        String           @map("business_id") @db.Uuid
+  creatorId         String           @map("creator_id") @db.Uuid
+  status            InvitationStatus @default(pending)
+  message           String?
+  proposedTermsJson Json?            @map("proposed_terms_json")
+  invitedBy         String           @map("invited_by") @db.Uuid
+  expiresAt         DateTime?        @map("expires_at") @db.Timestamptz(6)
+  respondedAt       DateTime?        @map("responded_at") @db.Timestamptz(6)
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  creator  Creator  @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+
+  @@index([creatorId, status])
+  @@index([campaignId])
+  @@map("campaign_invitations")
+}
+
+// ───────────────────────────── Partnerships ─────────────────────────────
+
+enum PartnershipStatus {
+  pending
+  active
+  paused
+  completed
+  cancelled
+  disputed
+  terminated
+}
+
+model Partnership {
+  id                       String            @id @default(uuid()) @db.Uuid
+  businessId               String            @map("business_id") @db.Uuid
+  creatorId                String            @map("creator_id") @db.Uuid
+  campaignId               String            @map("campaign_id") @db.Uuid
+  applicationId            String?           @unique @map("application_id") @db.Uuid
+  invitationId             String?           @unique @map("invitation_id") @db.Uuid
+  status                   PartnershipStatus @default(pending)
+  acceptedAt               DateTime?         @map("accepted_at") @db.Timestamptz(6)
+  endedAt                  DateTime?         @map("ended_at") @db.Timestamptz(6)
+  termsSnapshotId          String?           @unique @map("terms_snapshot_id") @db.Uuid
+  attributionPolicyVersion String            @map("attribution_policy_version")
+  commissionRuleVersion    String            @map("commission_rule_version")
+  legalDocumentVersion     String?           @map("legal_document_version")
+  version                  Int               @default(1)
+  createdAt                DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business       Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  creator        Creator                     @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  campaign       Campaign                    @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  snapshots      PartnershipTermsSnapshot[]
+  promotionCodes PromotionCode[]
+  referralLinks  ReferralLink[]
+  qrAssets       QrAsset[]
+  deliverables   Deliverable[]
+  contentRights  ContentRight[]
+  conversation   Conversation?
+  events         PartnershipEvent[]
+
+  @@unique([campaignId, creatorId])
+  @@index([businessId, status])
+  @@index([creatorId, status])
+  @@map("partnerships")
+}
+
+/// Frozen, immutable partnership terms (UPDATE/DELETE blocked by trigger).
+model PartnershipTermsSnapshot {
+  id                 String   @id @default(uuid()) @db.Uuid
+  partnershipId      String   @map("partnership_id") @db.Uuid
+  version            Int
+  campaignConfigVersion Int   @map("campaign_config_version")
+  termsJson          Json     @map("terms_json")
+  commissionConfig   Json     @map("commission_config")
+  discountConfig     Json     @map("discount_config")
+  attributionPolicy  Json     @map("attribution_policy")
+  deliverablesJson   Json?    @map("deliverables_json")
+  contentRightsJson  Json?    @map("content_rights_json")
+  promotionRulesJson Json?    @map("promotion_rules_json")
+  payoutScheduleJson Json?    @map("payout_schedule_json")
+  holdPeriodDays     Int      @map("hold_period_days")
+  refundPolicyJson   Json?    @map("refund_policy_json")
+  feePlanJson        Json     @map("fee_plan_json")
+  acceptedBy         String   @map("accepted_by") @db.Uuid
+  acceptedAt         DateTime @map("accepted_at") @db.Timestamptz(6)
+  hash               String
+
+  partnership Partnership @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+
+  @@unique([partnershipId, version])
+  @@map("partnership_terms_snapshots")
+}
+
+/// Partnership activity timeline (spec §12.5).
+model PartnershipEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  partnershipId String   @map("partnership_id") @db.Uuid
+  eventType     String   @map("event_type")
+  actorUserId   String?  @map("actor_user_id") @db.Uuid
+  data          Json?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  partnership Partnership @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+
+  @@index([partnershipId, createdAt])
+  @@map("partnership_events")
+}
+
+// ───────────────────────────── Promotion assets ─────────────────────────────
+
+enum PromotionAssetStatus {
+  pending
+  active
+  paused
+  expired
+  revoked
+}
+
+model PromotionCode {
+  id               String               @id @default(uuid()) @db.Uuid
+  businessId       String               @map("business_id") @db.Uuid
+  campaignId       String               @map("campaign_id") @db.Uuid
+  partnershipId    String               @map("partnership_id") @db.Uuid
+  creatorId        String               @map("creator_id") @db.Uuid
+  code             String
+  normalizedCode   String               @map("normalized_code")
+  status           PromotionAssetStatus @default(pending)
+  startsAt         DateTime?            @map("starts_at") @db.Timestamptz(6)
+  expiresAt        DateTime?            @map("expires_at") @db.Timestamptz(6)
+  usageLimit       Int?                 @map("usage_limit")
+  perCustomerLimit Int?                 @map("per_customer_limit")
+  usageCount       Int                  @default(0) @map("usage_count")
+  rulesJson        Json?                @map("rules_json")
+  revokedAt        DateTime?            @map("revoked_at") @db.Timestamptz(6)
+  revokeReason     String?              @map("revoke_reason")
+  version          Int                  @default(1)
+  createdAt        DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business    Business                  @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  campaign    Campaign                  @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  partnership Partnership               @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+  creator     Creator                   @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  redemptions PromotionCodeRedemption[]
+
+  /// Scoped uniqueness: a normalized code is never reusable within a business, even after expiry/revoke (spec §7.1).
+  @@unique([businessId, normalizedCode])
+  @@index([partnershipId])
+  @@map("promotion_codes")
+}
+
+/// Code usage ledger for usage/per-customer limits (one row per counted redemption).
+model PromotionCodeRedemption {
+  id              String   @id @default(uuid()) @db.Uuid
+  promotionCodeId String   @map("promotion_code_id") @db.Uuid
+  conversionId    String?  @unique @map("conversion_id") @db.Uuid
+  customerRefHash String?  @map("customer_ref_hash")
+  redeemedAt      DateTime @default(now()) @map("redeemed_at") @db.Timestamptz(6)
+  source          String
+
+  promotionCode PromotionCode @relation(fields: [promotionCodeId], references: [id], onDelete: Restrict)
+
+  @@index([promotionCodeId, customerRefHash])
+  @@map("promotion_code_redemptions")
+}
+
+model ReferralLink {
+  id             String               @id @default(uuid()) @db.Uuid
+  partnershipId  String               @map("partnership_id") @db.Uuid
+  token          String               @unique
+  destinationUrl String               @map("destination_url")
+  allowedHost    String               @map("allowed_host")
+  status         PromotionAssetStatus @default(pending)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  partnership Partnership     @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+  qrAssets    QrAsset[]
+  clicks      TrackingClick[]
+
+  @@index([partnershipId])
+  @@map("referral_links")
+}
+
+enum QrStatus {
+  active
+  expired
+  revoked
+}
+
+model QrAsset {
+  id             String   @id @default(uuid()) @db.Uuid
+  partnershipId  String   @map("partnership_id") @db.Uuid
+  referralLinkId String?  @map("referral_link_id") @db.Uuid
+  assetFileId    String   @map("asset_file_id") @db.Uuid
+  encodedUrl     String   @map("encoded_url")
+  status         QrStatus @default(active)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  partnership  Partnership   @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+  referralLink ReferralLink? @relation(fields: [referralLinkId], references: [id], onDelete: Restrict)
+  assetFile    File          @relation(fields: [assetFileId], references: [id], onDelete: Restrict)
+
+  @@map("qr_assets")
+}
+
+// ───────────────────────────── Tracking & attribution ─────────────────────────────
+
+model TrackingClick {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  campaignId     String?  @map("campaign_id") @db.Uuid
+  partnershipId  String?  @map("partnership_id") @db.Uuid
+  creatorId      String?  @map("creator_id") @db.Uuid
+  referralLinkId String?  @map("referral_link_id") @db.Uuid
+  trackingSessionId String? @map("tracking_session_id") @db.Uuid
+  /// Opaque id propagated to the merchant as `codek_ref` for server-side attribution.
+  clickRef       String   @unique @map("click_ref")
+  method         String   @default("link")
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  sessionKeyHash String?  @map("session_key_hash")
+  source         String?
+  landingUrl     String?  @map("landing_url")
+  userAgentHash  String?  @map("user_agent_hash")
+  ipHash         String?  @map("ip_hash")
+  consentState   String?  @map("consent_state")
+  suspected      Boolean  @default(false)
+
+  referralLink ReferralLink? @relation(fields: [referralLinkId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, occurredAt])
+  @@index([partnershipId, occurredAt])
+  @@map("tracking_clicks")
+}
+
+model TrackingSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  businessId     String    @map("business_id") @db.Uuid
+  campaignId     String?   @map("campaign_id") @db.Uuid
+  partnershipId  String?   @map("partnership_id") @db.Uuid
+  creatorId      String?   @map("creator_id") @db.Uuid
+  sessionKeyHash String    @map("session_key_hash")
+  firstTouchAt   DateTime? @map("first_touch_at") @db.Timestamptz(6)
+  lastTouchAt    DateTime? @map("last_touch_at") @db.Timestamptz(6)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6)
+  consentState   String?   @map("consent_state")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([businessId, sessionKeyHash])
+  @@map("tracking_sessions")
+}
+
+enum TouchpointMethod {
+  code
+  link
+  qr
+  other
+}
+
+model AttributionTouchpoint {
+  id              String           @id @default(uuid()) @db.Uuid
+  businessId      String           @map("business_id") @db.Uuid
+  conversionId    String?          @map("conversion_id") @db.Uuid
+  campaignId      String?          @map("campaign_id") @db.Uuid
+  partnershipId   String?          @map("partnership_id") @db.Uuid
+  creatorId       String?          @map("creator_id") @db.Uuid
+  method          TouchpointMethod
+  eventType       String           @map("event_type")
+  externalEventId String?          @map("external_event_id")
+  sourceRef       String?          @map("source_ref")
+  occurredAt      DateTime         @map("occurred_at") @db.Timestamptz(6)
+  eligible        Boolean          @default(true)
+  ineligibleReason String?         @map("ineligible_reason")
+  metadata        Json?
+  dedupeKey       String?          @unique @map("dedupe_key")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  conversion Conversion? @relation(fields: [conversionId], references: [id], onDelete: Restrict)
+
+  @@index([conversionId])
+  @@index([businessId, occurredAt])
+  @@map("attribution_touchpoints")
+}
+
+enum ConflictState {
+  none
+  conflict
+  unresolved
+}
+
+enum DedupeState {
+  unique
+  duplicate
+  suspect
+}
+
+enum DecisionState {
+  attributed
+  unattributed
+  conflicted
+  invalid
+  duplicate
+}
+
+/// Immutable attribution decision (UPDATE/DELETE blocked). Re-decisions create a new row with `supersedes_id`.
+model AttributionDecision {
+  id                     String        @id @default(uuid()) @db.Uuid
+  businessId             String        @map("business_id") @db.Uuid
+  conversionId           String        @map("conversion_id") @db.Uuid
+  selectedPartnershipId  String?       @map("selected_partnership_id") @db.Uuid
+  selectedCreatorId      String?       @map("selected_creator_id") @db.Uuid
+  selectedTouchpointId   String?       @map("selected_touchpoint_id") @db.Uuid
+  method                 String
+  policyId               String        @map("policy_id")
+  policyVersion          String        @map("policy_version")
+  model                  String
+  windowSeconds          BigInt?       @map("window_seconds")
+  competingTouchpoints   Json?         @map("competing_touchpoints")
+  conflictState          ConflictState @map("conflict_state")
+  dedupeState            DedupeState   @map("dedupe_state")
+  decisionState          DecisionState @map("decision_state")
+  reason                 String
+  supersedesId           String?       @map("supersedes_id") @db.Uuid
+  decidedBy              String?       @map("decided_by") @db.Uuid
+  decidedAt              DateTime      @default(now()) @map("decided_at") @db.Timestamptz(6)
+
+  conversion Conversion @relation("ConversionDecisions", fields: [conversionId], references: [id], onDelete: Restrict)
+
+  @@index([conversionId])
+  @@index([businessId, decisionState])
+  @@map("attribution_decisions")
+}
+
+// ───────────────────────────── Conversions ─────────────────────────────
+
+enum ConversionType {
+  sale
+  booking
+  redemption
+  lead
+  registration
+  other
+}
+
+enum ConversionStatus {
+  received
+  validated
+  attributed
+  approved
+  rejected
+  cancelled
+  refunded
+  partially_refunded
+  reversed
+}
+
+enum VerifiedState {
+  verified
+  self_reported
+  unknown
+}
+
+model Conversion {
+  id                    String           @id @default(uuid()) @db.Uuid
+  businessId            String           @map("business_id") @db.Uuid
+  campaignId            String?          @map("campaign_id") @db.Uuid
+  partnershipId         String?          @map("partnership_id") @db.Uuid
+  creatorId             String?          @map("creator_id") @db.Uuid
+  integrationId         String?          @map("integration_id") @db.Uuid
+  type                  ConversionType
+  status                ConversionStatus @default(received)
+  externalRef           String           @map("external_ref")
+  grossMinor            BigInt?          @map("gross_minor")
+  discountMinor         BigInt?          @map("discount_minor")
+  taxMinor              BigInt?          @map("tax_minor")
+  shippingFeeMinor      BigInt?          @map("shipping_fee_minor")
+  otherFeeMinor         BigInt?          @map("other_fee_minor")
+  netMinor              BigInt?          @map("net_minor")
+  commissionableMinor   BigInt?          @map("commissionable_minor")
+  refundedMinor         BigInt           @default(0) @map("refunded_minor")
+  currency              String?          @db.Char(3)
+  lineItems             Json?            @map("line_items")
+  verifiedState         VerifiedState    @map("verified_state")
+  sourceSystem          String           @map("source_system")
+  customerRefHash       String?          @map("customer_ref_hash")
+  attributionDecisionId String?          @unique @map("attribution_decision_id") @db.Uuid
+  reviewReason          String?          @map("review_reason")
+  paidConfirmedAt       DateTime?        @map("paid_confirmed_at") @db.Timestamptz(6)
+  occurredAt            DateTime         @map("occurred_at") @db.Timestamptz(6)
+  version               Int              @default(1)
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business      Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  events        ConversionEvent[]
+  touchpoints   AttributionTouchpoint[]
+  decisions     AttributionDecision[]   @relation("ConversionDecisions")
+  commission    CommissionCalculation?
+
+  /// Deduplication: one conversion per external order/booking/redemption per business and source (spec §6.9).
+  @@unique([businessId, sourceSystem, externalRef])
+  @@index([businessId, occurredAt])
+  @@index([partnershipId, status])
+  @@index([creatorId, status])
+  @@map("conversions")
+}
+
+enum ConversionEventState {
+  received
+  processed
+  failed
+  ignored
+}
+
+/// Event lineage: raw webhook → normalized event → conversion (spec §11.6).
+model ConversionEvent {
+  id              String               @id @default(uuid()) @db.Uuid
+  conversionId    String?              @map("conversion_id") @db.Uuid
+  webhookEventId  String?              @map("webhook_event_id") @db.Uuid
+  businessId      String               @map("business_id") @db.Uuid
+  eventType       String               @map("event_type")
+  schemaVersion   String               @map("schema_version")
+  source          String
+  externalEventId String?              @map("external_event_id")
+  occurredAt      DateTime             @map("occurred_at") @db.Timestamptz(6)
+  receivedAt      DateTime             @default(now()) @map("received_at") @db.Timestamptz(6)
+  payloadJson     Json                 @map("payload_json")
+  processingState ConversionEventState @default(received) @map("processing_state")
+  processingNote  String?              @map("processing_note")
+  retryCount      Int                  @default(0) @map("retry_count")
+  correlationId   String?              @map("correlation_id")
+
+  conversion   Conversion?   @relation(fields: [conversionId], references: [id], onDelete: Restrict)
+  webhookEvent WebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, source, externalEventId])
+  @@index([conversionId])
+  @@map("conversion_events")
+}
+
+// ───────────────────────────── Commission & ledger ─────────────────────────────
+
+enum CommissionType {
+  percentage
+  fixed
+  hybrid
+}
+
+enum CommissionBaseType {
+  gross
+  discounted
+  net
+  custom
+}
+
+enum RoundingMode {
+  half_up
+  half_even
+  floor
+  ceil
+}
+
+enum RefundBehavior {
+  clawback
+  reverse
+  none
+}
+
+/// Versioned commission rules. Rows are never edited once referenced; edits create a new version.
+model CommissionRule {
+  id              String             @id @default(uuid()) @db.Uuid
+  businessId      String             @map("business_id") @db.Uuid
+  ruleKey         String             @map("rule_key")
+  version         Int
+  type            CommissionType
+  rate            Decimal?           @db.Decimal(9, 6)
+  fixedMinor      BigInt?            @map("fixed_minor")
+  baseType        CommissionBaseType @map("base_type")
+  includeTax      Boolean            @default(false) @map("include_tax")
+  includeShipping Boolean            @default(false) @map("include_shipping")
+  excludedItems   Json?              @map("excluded_items")
+  minMinor        BigInt?            @map("min_minor")
+  maxMinor        BigInt?            @map("max_minor")
+  currency        String?            @db.Char(3)
+  roundingMode    RoundingMode       @default(half_up) @map("rounding_mode")
+  refundBehavior  RefundBehavior     @default(reverse) @map("refund_behavior")
+  activeFrom      DateTime           @default(now()) @map("active_from") @db.Timestamptz(6)
+  activeTo        DateTime?          @map("active_to") @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  business     Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  campaigns    Campaign[]
+  calculations CommissionCalculation[]
+
+  @@unique([businessId, ruleKey, version])
+  @@map("commission_rules")
+}
+
+enum CommissionStatus {
+  pending
+  approved
+  funded
+  available
+  payout_requested
+  processing
+  paid
+  reversed
+  clawback
+}
+
+/// Commission result + frozen rule snapshot. Amount columns are immutable (trigger); adjustments are separate rows/entries.
+model CommissionCalculation {
+  id                    String           @id @default(uuid()) @db.Uuid
+  conversionId          String           @unique @map("conversion_id") @db.Uuid
+  businessId            String           @map("business_id") @db.Uuid
+  creatorId             String           @map("creator_id") @db.Uuid
+  partnershipId         String           @map("partnership_id") @db.Uuid
+  termsSnapshotId       String           @map("terms_snapshot_id") @db.Uuid
+  commissionRuleId      String           @map("commission_rule_id") @db.Uuid
+  commissionRuleVersion Int              @map("commission_rule_version")
+  ruleSnapshot          Json             @map("rule_snapshot")
+  baseMinor             BigInt           @map("base_minor")
+  rate                  Decimal?         @db.Decimal(9, 6)
+  fixedMinor            BigInt?          @map("fixed_minor")
+  commissionMinor       BigInt           @map("commission_minor")
+  feeMinor              BigInt           @default(0) @map("fee_minor")
+  feePlanSnapshot       Json             @map("fee_plan_snapshot")
+  reversedMinor         BigInt           @default(0) @map("reversed_minor")
+  feeReversedMinor      BigInt           @default(0) @map("fee_reversed_minor")
+  clawbackMinor         BigInt           @default(0) @map("clawback_minor")
+  currency              String           @db.Char(3)
+  status                CommissionStatus @default(pending)
+  trace                 Json?
+  holdUntil             DateTime         @map("hold_until") @db.Timestamptz(6)
+  calculatedAt          DateTime         @default(now()) @map("calculated_at") @db.Timestamptz(6)
+  approvedAt            DateTime?        @map("approved_at") @db.Timestamptz(6)
+  fundedAt              DateTime?        @map("funded_at") @db.Timestamptz(6)
+  availableAt           DateTime?        @map("available_at") @db.Timestamptz(6)
+  paidAt                DateTime?        @map("paid_at") @db.Timestamptz(6)
+  onHold                Boolean          @default(false) @map("on_hold")
+  holdReason            String?          @map("hold_reason")
+  version               Int              @default(1)
+  updatedAt             DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  conversion     Conversion     @relation(fields: [conversionId], references: [id], onDelete: Restrict)
+  commissionRule CommissionRule @relation(fields: [commissionRuleId], references: [id], onDelete: Restrict)
+  payoutItems    PayoutItem[]
+
+  @@index([creatorId, status])
+  @@index([businessId, status])
+  @@map("commission_calculations")
+}
+
+enum LedgerOwnerType {
+  platform
+  business
+  creator
+  provider
+}
+
+enum LedgerAccountStatus {
+  active
+  closed
+}
+
+model LedgerAccount {
+  id          String              @id @default(uuid()) @db.Uuid
+  businessId  String?             @map("business_id") @db.Uuid
+  ownerType   LedgerOwnerType     @map("owner_type")
+  ownerId     String?             @map("owner_id") @db.Uuid
+  /// owner_id, or 'platform' for platform accounts — gives a NOT NULL uniqueness key.
+  ownerKey    String              @map("owner_key")
+  accountType String              @map("account_type")
+  currency    String              @db.Char(3)
+  status      LedgerAccountStatus @default(active)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  lines LedgerEntryLine[]
+
+  @@unique([ownerType, ownerKey, accountType, currency])
+  @@index([ownerType, ownerId])
+  @@map("ledger_accounts")
+}
+
+/// Journal entry header. Immutable (trigger). Balanced per currency via deferred constraint trigger.
+model LedgerEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  businessId     String?  @map("business_id") @db.Uuid
+  entryType      String   @map("entry_type")
+  referenceType  String?  @map("reference_type")
+  referenceId    String?  @map("reference_id") @db.Uuid
+  idempotencyKey String?  @unique @map("idempotency_key")
+  currency       String   @db.Char(3)
+  effectiveAt    DateTime @default(now()) @map("effective_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  description    String?
+  metadata       Json?
+
+  lines LedgerEntryLine[]
+
+  @@index([referenceType, referenceId])
+  @@index([businessId, effectiveAt])
+  @@map("ledger_entries")
+}
+
+enum LedgerDirection {
+  debit
+  credit
+}
+
+model LedgerEntryLine {
+  id              String          @id @default(uuid()) @db.Uuid
+  ledgerEntryId   String          @map("ledger_entry_id") @db.Uuid
+  ledgerAccountId String          @map("ledger_account_id") @db.Uuid
+  direction       LedgerDirection
+  amountMinor     BigInt          @map("amount_minor")
+  currency        String          @db.Char(3)
+  lineOrder       Int             @map("line_order")
+  metadata        Json?
+
+  entry   LedgerEntry   @relation(fields: [ledgerEntryId], references: [id], onDelete: Restrict)
+  account LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([ledgerEntryId, lineOrder])
+  @@index([ledgerAccountId])
+  @@map("ledger_entry_lines")
+}
+
+// ───────────────────────────── Funding, payouts, providers ─────────────────────────────
+
+enum FundingStatus {
+  pending
+  confirmed
+  failed
+  reversed
+}
+
+model MerchantFunding {
+  id                    String        @id @default(uuid()) @db.Uuid
+  businessId            String        @map("business_id") @db.Uuid
+  amountMinor           BigInt        @map("amount_minor")
+  currency              String        @db.Char(3)
+  fundingMethod         String        @map("funding_method")
+  providerReference     String?       @map("provider_reference")
+  providerTransactionId String?       @map("provider_transaction_id") @db.Uuid
+  status                FundingStatus @default(pending)
+  idempotencyKey        String?       @unique @map("idempotency_key")
+  requestedBy           String        @map("requested_by") @db.Uuid
+  confirmedBy           String?       @map("confirmed_by") @db.Uuid
+  failureReason         String?       @map("failure_reason")
+  receivedAt            DateTime?     @map("received_at") @db.Timestamptz(6)
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business            Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  providerTransaction PaymentProviderTransaction? @relation("FundingProviderTx", fields: [providerTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, status])
+  @@map("merchant_fundings")
+}
+
+enum PayoutStatus {
+  available
+  requested
+  processing
+  paid
+  failed
+  reversed
+  cancelled
+}
+
+model Payout {
+  id                    String       @id @default(uuid()) @db.Uuid
+  creatorId             String       @map("creator_id") @db.Uuid
+  businessId            String?      @map("business_id") @db.Uuid
+  amountMinor           BigInt       @map("amount_minor")
+  currency              String       @db.Char(3)
+  status                PayoutStatus @default(requested)
+  provider              String
+  payoutMethodSnapshot  Json?        @map("payout_method_snapshot")
+  idempotencyKey        String?      @unique @map("idempotency_key")
+  requestedAt           DateTime     @default(now()) @map("requested_at") @db.Timestamptz(6)
+  processedAt           DateTime?    @map("processed_at") @db.Timestamptz(6)
+  providerTransactionId String?      @map("provider_transaction_id") @db.Uuid
+  failureReasonCode     String?      @map("failure_reason_code")
+  riskHold              Boolean      @default(false) @map("risk_hold")
+  version               Int          @default(1)
+  createdAt             DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  creator             Creator                     @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  attempts            PayoutAttempt[]
+  items               PayoutItem[]
+  providerTransaction PaymentProviderTransaction? @relation("PayoutProviderTx", fields: [providerTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([creatorId, status])
+  @@map("payouts")
+}
+
+/// Which commissions a payout settles (D-016).
+model PayoutItem {
+  id                      String @id @default(uuid()) @db.Uuid
+  payoutId                String @map("payout_id") @db.Uuid
+  commissionCalculationId String @map("commission_calculation_id") @db.Uuid
+  amountMinor             BigInt @map("amount_minor")
+
+  payout     Payout                @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  commission CommissionCalculation @relation(fields: [commissionCalculationId], references: [id], onDelete: Restrict)
+
+  @@unique([payoutId, commissionCalculationId])
+  @@index([commissionCalculationId])
+  @@map("payout_items")
+}
+
+enum PayoutAttemptStatus {
+  pending
+  processing
+  success
+  failed
+}
+
+/// Provider attempts are append-only history; failed attempts are never deleted (spec §10.5).
+model PayoutAttempt {
+  id                String              @id @default(uuid()) @db.Uuid
+  payoutId          String              @map("payout_id") @db.Uuid
+  attemptNumber     Int                 @map("attempt_number")
+  provider          String
+  providerReference String?             @map("provider_reference")
+  status            PayoutAttemptStatus @default(pending)
+  errorCode         String?             @map("error_code")
+  errorMessageSafe  String?             @map("error_message_safe")
+  startedAt         DateTime            @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt        DateTime?           @map("finished_at") @db.Timestamptz(6)
+
+  payout Payout @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+
+  @@unique([payoutId, attemptNumber])
+  @@map("payout_attempts")
+}
+
+enum ProviderEnvironment {
+  test
+  live
+}
+
+model PaymentProviderTransaction {
+  id                    String              @id @default(uuid()) @db.Uuid
+  provider              String
+  environment           ProviderEnvironment
+  providerTransactionId String              @map("provider_transaction_id")
+  transactionType       String              @map("transaction_type")
+  status                String
+  amountMinor           BigInt?             @map("amount_minor")
+  currency              String?             @db.Char(3)
+  relatedEntityType     String?             @map("related_entity_type")
+  relatedEntityId       String?             @map("related_entity_id") @db.Uuid
+  rawReference          String?             @map("raw_reference")
+  occurredAt            DateTime?           @map("occurred_at") @db.Timestamptz(6)
+  createdAt             DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  fundings MerchantFunding[] @relation("FundingProviderTx")
+  payouts  Payout[]          @relation("PayoutProviderTx")
+
+  @@unique([provider, environment, providerTransactionId])
+  @@map("payment_provider_transactions")
+}
+
+enum ReconciliationStatus {
+  running
+  completed
+  failed
+  needs_review
+}
+
+model Reconciliation {
+  id            String               @id @default(uuid()) @db.Uuid
+  integrationId String?              @map("integration_id") @db.Uuid
+  kind          String
+  scopeStart    DateTime             @map("scope_start") @db.Timestamptz(6)
+  scopeEnd      DateTime             @map("scope_end") @db.Timestamptz(6)
+  status        ReconciliationStatus @default(running)
+  triggeredBy   String?              @map("triggered_by") @db.Uuid
+  startedAt     DateTime             @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime?            @map("completed_at") @db.Timestamptz(6)
+  summaryJson   Json?                @map("summary_json")
+
+  integration Integration?         @relation(fields: [integrationId], references: [id], onDelete: Restrict)
+  items       ReconciliationItem[]
+
+  @@index([integrationId, startedAt])
+  @@map("reconciliations")
+}
+
+enum ReconciliationItemStatus {
+  matched
+  missing_local
+  missing_external
+  mismatch
+  duplicate
+  late
+}
+
+model ReconciliationItem {
+  id                  String                   @id @default(uuid()) @db.Uuid
+  reconciliationId    String                   @map("reconciliation_id") @db.Uuid
+  entityType          String                   @map("entity_type")
+  entityId            String?                  @map("entity_id") @db.Uuid
+  externalRef         String?                  @map("external_ref")
+  localAmountMinor    BigInt?                  @map("local_amount_minor")
+  externalAmountMinor BigInt?                  @map("external_amount_minor")
+  currency            String?                  @db.Char(3)
+  status              ReconciliationItemStatus
+  differenceMinor     BigInt?                  @map("difference_minor")
+  notes               String?
+  resolution          String?
+  resolvedBy          String?                  @map("resolved_by") @db.Uuid
+  resolvedAt          DateTime?                @map("resolved_at") @db.Timestamptz(6)
+
+  reconciliation Reconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Restrict)
+
+  @@index([reconciliationId, status])
+  @@map("reconciliation_items")
+}
+
+// ───────────────────────────── Integrations & events ─────────────────────────────
+
+enum IntegrationCategory {
+  ecommerce
+  pos
+  booking
+  payment
+  crm
+  custom
+  other
+}
+
+enum IntegrationStatus {
+  not_connected
+  connecting
+  connected
+  testing
+  live
+  paused
+  error
+  disconnected
+}
+
+model Integration {
+  id              String              @id @default(uuid()) @db.Uuid
+  businessId      String              @map("business_id") @db.Uuid
+  provider        String
+  category        IntegrationCategory
+  environment     ProviderEnvironment @default(test)
+  status          IntegrationStatus   @default(not_connected)
+  displayName     String              @map("display_name")
+  /// Non-secret configuration (e.g. shop domain). Secrets live in the secret store only.
+  config          Json?
+  externalAccountRef String?          @map("external_account_ref")
+  credentialRefId String?             @unique @map("credential_ref_id") @db.Uuid
+  healthStatus    String?             @map("health_status")
+  lastTestAt      DateTime?           @map("last_test_at") @db.Timestamptz(6)
+  lastTestResult  String?             @map("last_test_result")
+  lastSuccessAt   DateTime?           @map("last_success_at") @db.Timestamptz(6)
+  lastErrorCode   String?             @map("last_error_code")
+  disconnectedAt  DateTime?           @map("disconnected_at") @db.Timestamptz(6)
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business        Business                    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  credentialRefs  IntegrationCredentialRef[]
+  webhookEvents   WebhookEvent[]
+  campaigns       Campaign[]
+  reconciliations Reconciliation[]
+
+  @@index([businessId, status])
+  @@index([provider, externalAccountRef])
+  @@map("integrations")
+}
+
+/// Reference to a secret held by the secret manager (never the secret itself).
+model IntegrationCredentialRef {
+  id              String    @id @default(uuid()) @db.Uuid
+  integrationId   String    @map("integration_id") @db.Uuid
+  secretManagerKey String   @unique @map("secret_manager_key")
+  credentialType  String    @map("credential_type")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  rotatedAt       DateTime? @map("rotated_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Restrict)
+
+  @@map("integration_credentials_refs")
+}
+
+/// Local secret-store backend: AES-256-GCM ciphertext only (SECRETS_BACKEND=local-encrypted).
+model EncryptedSecret {
+  key        String   @id
+  ciphertext String
+  iv         String
+  authTag    String   @map("auth_tag")
+  keyVersion Int      @default(1) @map("key_version")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("encrypted_secrets")
+}
+
+enum WebhookProcessingState {
+  received
+  queued
+  processing
+  processed
+  failed
+  ignored
+  dead_letter
+}
+
+/// Raw inbound provider events. raw_payload is immutable (trigger).
+model WebhookEvent {
+  id                String                 @id @default(uuid()) @db.Uuid
+  integrationId     String?                @map("integration_id") @db.Uuid
+  businessId        String?                @map("business_id") @db.Uuid
+  provider          String
+  eventType         String                 @map("event_type")
+  schemaVersion     String                 @map("schema_version")
+  providerEventId   String?                @map("provider_event_id")
+  signatureValid    Boolean                @map("signature_valid")
+  replayCheckPassed Boolean                @map("replay_check_passed")
+  idempotencyKey    String?                @unique @map("idempotency_key")
+  occurredAt        DateTime?              @map("occurred_at") @db.Timestamptz(6)
+  receivedAt        DateTime               @default(now()) @map("received_at") @db.Timestamptz(6)
+  rawPayload        Json                   @map("raw_payload")
+  processingState   WebhookProcessingState @default(received) @map("processing_state")
+  retryCount        Int                    @default(0) @map("retry_count")
+  lastErrorCode     String?                @map("last_error_code")
+  lastErrorMessage  String?                @map("last_error_message")
+  correlationId     String?                @map("correlation_id")
+  processedAt       DateTime?              @map("processed_at") @db.Timestamptz(6)
+
+  integration      Integration?      @relation(fields: [integrationId], references: [id], onDelete: Restrict)
+  conversionEvents ConversionEvent[]
+
+  @@index([processingState, receivedAt])
+  @@index([integrationId, receivedAt])
+  @@map("webhook_events")
+}
+
+enum OutboxStatus {
+  pending
+  processing
+  published
+  failed
+}
+
+/// Transactional outbox for reliable internal event publication (spec §11.7).
+model OutboxEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  eventType     String       @map("event_type")
+  schemaVersion String       @map("schema_version")
+  aggregateType String       @map("aggregate_type")
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  businessId    String?      @map("business_id") @db.Uuid
+  correlationId String?      @map("correlation_id")
+  payloadJson   Json         @map("payload_json")
+  status        OutboxStatus @default(pending)
+  attemptCount  Int          @default(0) @map("attempt_count")
+  lastError     String?      @map("last_error")
+  nextAttemptAt DateTime?    @map("next_attempt_at") @db.Timestamptz(6)
+  publishedAt   DateTime?    @map("published_at") @db.Timestamptz(6)
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([status, nextAttemptAt])
+  @@map("outbox_events")
+}
+
+/// API idempotency keys for monetary/state-changing POSTs (spec §20.1).
+model IdempotencyKey {
+  id           String   @id @default(uuid()) @db.Uuid
+  scope        String
+  key          String
+  requestHash  String   @map("request_hash")
+  responseCode Int?     @map("response_code")
+  responseBody Json?    @map("response_body")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@unique([scope, key])
+  @@map("idempotency_keys")
+}
+
+// ───────────────────────────── Notifications & messaging ─────────────────────────────
+
+enum NotificationChannel {
+  in_app
+  email
+  push
+  sms
+  whatsapp
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  type      String
+  channel   NotificationChannel
+  title     String
+  body      String
+  dataJson  Json?               @map("data_json")
+  dedupeKey String?             @unique @map("dedupe_key")
+  readAt    DateTime?           @map("read_at") @db.Timestamptz(6)
+  sentAt    DateTime?           @map("sent_at") @db.Timestamptz(6)
+  failedAt  DateTime?           @map("failed_at") @db.Timestamptz(6)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id               String  @id @default(uuid()) @db.Uuid
+  userId           String  @map("user_id") @db.Uuid
+  notificationType String  @map("notification_type")
+  inAppEnabled     Boolean @default(true) @map("in_app_enabled")
+  emailEnabled     Boolean @default(true) @map("email_enabled")
+  pushEnabled      Boolean @default(false) @map("push_enabled")
+  smsEnabled       Boolean @default(false) @map("sms_enabled")
+  whatsappEnabled  Boolean @default(false) @map("whatsapp_enabled")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, notificationType])
+  @@map("notification_preferences")
+}
+
+enum ConversationStatus {
+  active
+  closed
+}
+
+model Conversation {
+  id            String             @id @default(uuid()) @db.Uuid
+  partnershipId String             @unique @map("partnership_id") @db.Uuid
+  businessId    String             @map("business_id") @db.Uuid
+  creatorId     String             @map("creator_id") @db.Uuid
+  status        ConversationStatus @default(active)
+  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  partnership Partnership @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+  messages    Message[]
+
+  @@map("conversations")
+}
+
+enum MessageType {
+  text
+  image
+  file
+  system
+}
+
+model Message {
+  id             String      @id @default(uuid()) @db.Uuid
+  conversationId String      @map("conversation_id") @db.Uuid
+  senderUserId   String?     @map("sender_user_id") @db.Uuid
+  messageType    MessageType @map("message_type")
+  body           String?
+  fileId         String?     @map("file_id") @db.Uuid
+  hiddenAt       DateTime?   @map("hidden_at") @db.Timestamptz(6)
+  hiddenBy       String?     @map("hidden_by") @db.Uuid
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  editedAt       DateTime?   @map("edited_at") @db.Timestamptz(6)
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(6)
+
+  conversation Conversation   @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  reports      MessageReport[]
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model MessageReport {
+  id             String    @id @default(uuid()) @db.Uuid
+  messageId      String    @map("message_id") @db.Uuid
+  reporterUserId String    @map("reporter_user_id") @db.Uuid
+  reason         String
+  status         String    @default("open")
+  resolvedBy     String?   @map("resolved_by") @db.Uuid
+  resolvedAt     DateTime? @map("resolved_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Restrict)
+
+  @@unique([messageId, reporterUserId])
+  @@map("message_reports")
+}
+
+// ───────────────────────────── Deliverables & content ─────────────────────────────
+
+enum DeliverableStatus {
+  not_started
+  submitted
+  changes_requested
+  resubmitted
+  approved
+}
+
+model Deliverable {
+  id            String            @id @default(uuid()) @db.Uuid
+  partnershipId String            @map("partnership_id") @db.Uuid
+  type          String
+  description   String?
+  dueAt         DateTime?         @map("due_at") @db.Timestamptz(6)
+  status        DeliverableStatus @default(not_started)
+  required      Boolean           @default(true)
+  version       Int               @default(1)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  partnership Partnership         @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+  submissions ContentSubmission[]
+
+  @@index([partnershipId])
+  @@map("deliverables")
+}
+
+enum SubmissionStatus {
+  submitted
+  approved
+  changes_requested
+  resubmitted
+  rejected
+}
+
+model ContentSubmission {
+  id            String           @id @default(uuid()) @db.Uuid
+  deliverableId String           @map("deliverable_id") @db.Uuid
+  creatorId     String           @map("creator_id") @db.Uuid
+  fileId        String?          @map("file_id") @db.Uuid
+  url           String?
+  caption       String?
+  status        SubmissionStatus @default(submitted)
+  submittedAt   DateTime         @default(now()) @map("submitted_at") @db.Timestamptz(6)
+  reviewedAt    DateTime?        @map("reviewed_at") @db.Timestamptz(6)
+  reviewedBy    String?          @map("reviewed_by") @db.Uuid
+  reviewNote    String?          @map("review_note")
+
+  deliverable Deliverable @relation(fields: [deliverableId], references: [id], onDelete: Restrict)
+
+  @@index([deliverableId])
+  @@map("content_submissions")
+}
+
+model ContentRight {
+  id                  String   @id @default(uuid()) @db.Uuid
+  partnershipId       String   @map("partnership_id") @db.Uuid
+  ownership           String
+  organicAllowed      Boolean  @map("organic_allowed")
+  paidAdsAllowed      Boolean  @map("paid_ads_allowed")
+  whitelistingAllowed Boolean  @map("whitelisting_allowed")
+  durationDays        Int?     @map("duration_days")
+  territory           String?
+  exclusivityJson     Json?    @map("exclusivity_json")
+  termsSnapshotId     String?  @map("terms_snapshot_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  partnership Partnership @relation(fields: [partnershipId], references: [id], onDelete: Restrict)
+
+  @@index([partnershipId])
+  @@map("content_rights")
+}
+
+// ───────────────────────────── Trust, fraud, disputes, audit ─────────────────────────────
+
+enum VerificationSubjectType {
+  business
+  creator
+  user
+}
+
+enum VerificationCaseStatus {
+  unverified
+  pending
+  verified
+  suspended
+  expired
+  rejected
+}
+
+model VerificationCase {
+  id             String                  @id @default(uuid()) @db.Uuid
+  subjectType    VerificationSubjectType @map("subject_type")
+  subjectId      String                  @map("subject_id") @db.Uuid
+  status         VerificationCaseStatus  @default(pending)
+  submittedBy    String?                 @map("submitted_by") @db.Uuid
+  reviewerUserId String?                 @map("reviewer_user_id") @db.Uuid
+  evidenceJson   Json?                   @map("evidence_json")
+  reasonCode     String?                 @map("reason_code")
+  createdAt      DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt     DateTime?               @map("resolved_at") @db.Timestamptz(6)
+
+  @@index([subjectType, subjectId])
+  @@index([status])
+  @@map("verification_cases")
+}
+
+enum Severity {
+  low
+  medium
+  high
+  critical
+}
+
+enum FraudFlagStatus {
+  open
+  reviewing
+  resolved
+  dismissed
+}
+
+model FraudFlag {
+  id           String          @id @default(uuid()) @db.Uuid
+  businessId   String?         @map("business_id") @db.Uuid
+  subjectType  String          @map("subject_type")
+  subjectId    String          @map("subject_id") @db.Uuid
+  signalType   String          @map("signal_type")
+  severity     Severity
+  score        Decimal?        @db.Decimal(9, 4)
+  evidenceJson Json?           @map("evidence_json")
+  dedupeKey    String?         @unique @map("dedupe_key")
+  status       FraudFlagStatus @default(open)
+  fraudCaseId  String?         @map("fraud_case_id") @db.Uuid
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt   DateTime?       @map("resolved_at") @db.Timestamptz(6)
+
+  fraudCase FraudCase? @relation(fields: [fraudCaseId], references: [id], onDelete: Restrict)
+
+  @@index([status, severity])
+  @@index([subjectType, subjectId])
+  @@map("fraud_flags")
+}
+
+enum FraudCaseStatus {
+  open
+  evidence
+  review
+  decision
+  closed
+}
+
+model FraudCase {
+  id             String          @id @default(uuid()) @db.Uuid
+  businessId     String?         @map("business_id") @db.Uuid
+  subjectType    String          @map("subject_type")
+  subjectId      String          @map("subject_id") @db.Uuid
+  status         FraudCaseStatus @default(open)
+  riskLevel      Severity        @map("risk_level")
+  summary        String
+  decisionReason String?         @map("decision_reason")
+  resolutionCode String?         @map("resolution_code")
+  reviewerUserId String?         @map("reviewer_user_id") @db.Uuid
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  closedAt       DateTime?       @map("closed_at") @db.Timestamptz(6)
+
+  flags FraudFlag[]
+
+  @@index([status])
+  @@map("fraud_cases")
+}
+
+enum DisputeStatus {
+  open
+  evidence
+  hold
+  review
+  decision
+  adjustment
+  closed
+}
+
+model Dispute {
+  id              String        @id @default(uuid()) @db.Uuid
+  businessId      String?       @map("business_id") @db.Uuid
+  creatorId       String?       @map("creator_id") @db.Uuid
+  partnershipId   String?       @map("partnership_id") @db.Uuid
+  conversionId    String?       @map("conversion_id") @db.Uuid
+  type            String
+  status          DisputeStatus @default(open)
+  openedByUserId  String        @map("opened_by_user_id") @db.Uuid
+  summary         String
+  decisionCode    String?       @map("decision_code")
+  decisionReason  String?       @map("decision_reason")
+  decidedBy       String?       @map("decided_by") @db.Uuid
+  version         Int           @default(1)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  closedAt        DateTime?     @map("closed_at") @db.Timestamptz(6)
+
+  evidence DisputeEvidence[]
+
+  @@index([status])
+  @@index([businessId])
+  @@index([creatorId])
+  @@map("disputes")
+}
+
+model DisputeEvidence {
+  id          String   @id @default(uuid()) @db.Uuid
+  disputeId   String   @map("dispute_id") @db.Uuid
+  submittedBy String   @map("submitted_by") @db.Uuid
+  fileId      String?  @map("file_id") @db.Uuid
+  externalUrl String?  @map("external_url")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Restrict)
+
+  @@index([disputeId])
+  @@map("dispute_evidence")
+}
+
+enum ApprovalState {
+  not_required
+  pending
+  approved
+  rejected
+}
+
+/// Privileged admin actions; high-risk actions require a different second approver (dual control).
+model AdminAction {
+  id            String        @id @default(uuid()) @db.Uuid
+  adminUserId   String        @map("admin_user_id") @db.Uuid
+  actionType    String        @map("action_type")
+  targetType    String        @map("target_type")
+  targetId      String        @map("target_id") @db.Uuid
+  reason        String
+  payloadJson   Json?         @map("payload_json")
+  approvalState ApprovalState @map("approval_state")
+  approvedBy    String?       @map("approved_by") @db.Uuid
+  decidedAt     DateTime?     @map("decided_at") @db.Timestamptz(6)
+  executedAt    DateTime?     @map("executed_at") @db.Timestamptz(6)
+  resultJson    Json?         @map("result_json")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([approvalState, createdAt])
+  @@map("admin_actions")
+}
+
+/// Append-only, hash-chained audit trail (UPDATE/DELETE blocked; chain computed by trigger).
+model AuditLog {
+  id               String   @id @default(uuid()) @db.Uuid
+  seq              BigInt   @unique @default(autoincrement())
+  actorUserId      String?  @map("actor_user_id") @db.Uuid
+  actorType        String   @default("user") @map("actor_type")
+  tenantBusinessId String?  @map("tenant_business_id") @db.Uuid
+  action           String
+  objectType       String   @map("object_type")
+  objectId         String?  @map("object_id") @db.Uuid
+  beforeJson       Json?    @map("before_json")
+  afterJson        Json?    @map("after_json")
+  reason           String?
+  ipHash           String?  @map("ip_hash")
+  requestId        String?  @map("request_id")
+  prevHash         String?  @map("prev_hash")
+  hash             String?
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([tenantBusinessId, createdAt])
+  @@index([objectType, objectId])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}
+
+// ───────────────────────────── Files, billing, legal, settings ─────────────────────────────
+
+enum FileVisibility {
+  private
+  restricted
+  public
+}
+
+model File {
+  id         String         @id @default(uuid()) @db.Uuid
+  ownerType  String         @map("owner_type")
+  ownerId    String         @map("owner_id") @db.Uuid
+  storageKey String         @unique @map("storage_key")
+  mimeType   String         @map("mime_type")
+  sizeBytes  BigInt         @map("size_bytes")
+  checksum   String?
+  purpose    String
+  visibility FileVisibility @default(private)
+  uploadedBy String?        @map("uploaded_by") @db.Uuid
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  deletedAt  DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  qrAssets QrAsset[]
+
+  @@index([ownerType, ownerId])
+  @@map("files")
+}
+
+model PricingPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  planKey     String   @unique @map("plan_key")
+  name        String
+  description String?
+  /// Subscription price (optional) in minor units.
+  monthlyPriceMinor BigInt? @map("monthly_price_minor")
+  currency    String?  @db.Char(3)
+  /// Fee plan consumed by the commission engine (see @codek/domain FeePlan).
+  feePlanJson Json     @map("fee_plan_json")
+  active      Boolean  @default(true)
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("pricing_plans")
+}
+
+model BillingCustomer {
+  id                 String   @id @default(uuid()) @db.Uuid
+  businessId         String   @unique @map("business_id") @db.Uuid
+  provider           String
+  providerCustomerId String?  @map("provider_customer_id")
+  status             String
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  business      Business              @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  subscriptions BillingSubscription[]
+  invoices      BillingInvoice[]
+
+  @@map("billing_customers")
+}
+
+model BillingSubscription {
+  id                     String    @id @default(uuid()) @db.Uuid
+  billingCustomerId      String    @map("billing_customer_id") @db.Uuid
+  businessId             String    @map("business_id") @db.Uuid
+  provider               String
+  providerSubscriptionId String?   @map("provider_subscription_id")
+  planKey                String    @map("plan_key")
+  status                 String
+  feePlanSnapshot        Json      @map("fee_plan_snapshot")
+  periodStart            DateTime? @map("period_start") @db.Timestamptz(6)
+  periodEnd              DateTime? @map("period_end") @db.Timestamptz(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  customer BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, status])
+  @@map("billing_subscriptions")
+}
+
+model BillingInvoice {
+  id                String    @id @default(uuid()) @db.Uuid
+  billingCustomerId String    @map("billing_customer_id") @db.Uuid
+  businessId        String    @map("business_id") @db.Uuid
+  provider          String
+  providerInvoiceId String?   @map("provider_invoice_id")
+  status            String
+  amountMinor       BigInt    @map("amount_minor")
+  currency          String    @db.Char(3)
+  periodStart       DateTime? @map("period_start") @db.Timestamptz(6)
+  periodEnd         DateTime? @map("period_end") @db.Timestamptz(6)
+  lineItems         Json?     @map("line_items")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  customer BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, createdAt])
+  @@map("billing_invoices")
+}
+
+enum LegalDocumentStatus {
+  draft
+  published
+  retired
+}
+
+model LegalDocument {
+  id           String              @id @default(uuid()) @db.Uuid
+  documentType String              @map("document_type")
+  version      String
+  jurisdiction String?             @db.Char(2)
+  title        String
+  content      String
+  contentHash  String              @map("content_hash")
+  status       LegalDocumentStatus @default(draft)
+  requiredFor  String[]            @default([]) @map("required_for")
+  publishedAt  DateTime?           @map("published_at") @db.Timestamptz(6)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  acceptances LegalAcceptance[]
+
+  @@unique([documentType, version, jurisdiction])
+  @@map("legal_documents")
+}
+
+model LegalAcceptance {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  businessId      String?  @map("business_id") @db.Uuid
+  creatorId       String?  @map("creator_id") @db.Uuid
+  legalDocumentId String   @map("legal_document_id") @db.Uuid
+  context         String?
+  acceptedAt      DateTime @default(now()) @map("accepted_at") @db.Timestamptz(6)
+  ipHash          String?  @map("ip_hash")
+  userAgentHash   String?  @map("user_agent_hash")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  legalDocument LegalDocument @relation(fields: [legalDocumentId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@map("legal_acceptances")
+}
+
+enum SettingEnvironment {
+  dev
+  staging
+  production
+}
+
+model SystemSetting {
+  id          String             @id @default(uuid()) @db.Uuid
+  key         String             @unique
+  kind        String             @default("setting")
+  valueJson   Json               @map("value_json")
+  environment SettingEnvironment @default(dev)
+  enabled     Boolean            @default(true)
+  description String?
+  updatedBy   String?            @map("updated_by") @db.Uuid
+  updatedAt   DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("system_settings")
+}
+
+enum DataRequestType {
+  access
+  deletion
+  rectification
+  portability
+}
+
+/// Data-subject request workflow (spec §14.1).
+model DataSubjectRequest {
+  id          String          @id @default(uuid()) @db.Uuid
+  userId      String?         @map("user_id") @db.Uuid
+  requestType DataRequestType @map("request_type")
+  status      String          @default("open")
+  details     String?
+  handledBy   String?         @map("handled_by") @db.Uuid
+  resultNote  String?         @map("result_note")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt DateTime?       @map("completed_at") @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("data_subject_requests")
+}
+
+/// Pre-aggregated daily analytics (background job); reconciles with ledger on money fields.
+model AnalyticsDailyStat {
+  id                  String   @id @default(uuid()) @db.Uuid
+  day                 DateTime @db.Date
+  /// Deterministic scope key: "<campaignId|*>:<partnershipId|*>:<currency|*>"
+  scopeKey            String   @map("scope_key")
+  businessId          String   @map("business_id") @db.Uuid
+  campaignId          String?  @map("campaign_id") @db.Uuid
+  partnershipId       String?  @map("partnership_id") @db.Uuid
+  creatorId           String?  @map("creator_id") @db.Uuid
+  currency            String?  @db.Char(3)
+  clicks              Int      @default(0)
+  qrScans             Int      @default(0) @map("qr_scans")
+  trackedVisits       Int      @default(0) @map("tracked_visits")
+  conversions         Int      @default(0)
+  approvedConversions Int      @default(0) @map("approved_conversions")
+  verifiedSalesMinor  BigInt   @default(0) @map("verified_sales_minor")
+  commissionMinor     BigInt   @default(0) @map("commission_minor")
+  feeMinor            BigInt   @default(0) @map("fee_minor")
+  computedAt          DateTime @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  @@unique([day, businessId, scopeKey])
+  @@index([businessId, day])
+  @@map("analytics_daily_stats")
+}

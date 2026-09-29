@@ -3,7 +3,7 @@
 _Last updated: 2026-09-29_
 
 ## Current phase
-Phase 1 — Repository, tooling, environment, monorepo, configuration, Docker, CI foundation.
+Phase 3 — Authentication, sessions, users, roles, permissions, RBAC (Phases 1–2 complete).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -16,8 +16,12 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
 - `@codek/config`: validated environment schema with production guards — TESTED.
 - Local infra: docker compose (PostgreSQL 18, Redis 7, optional MinIO/Mailpit), CI workflow, secret scan script.
 
+- Phase 2 (database): Prisma schema with all spec §19 entities + documented additions, init migration, DB invariant
+  migration (balanced/immutable ledger, audit hash chain, no-delete history, check constraints), idempotent reference
+  seed — TESTED (database/test/invariants.test.ts, 8 tests on PostgreSQL 18.6).
+
 ## Next task
-Phase 2 — Prisma schema for the full entity inventory (spec §19), migrations, DB-level invariants, seed.
+Phase 3 — API app (NestJS 11): bootstrap, error envelope, request ids, logging, Better Auth, sessions, RBAC guards.
 
 ## Environment notes
 - Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).
