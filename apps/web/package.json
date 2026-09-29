@@ -9,7 +9,7 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "lint": "eslint app components lib",
-    "test": "echo \"web unit logic lives in @codek/api-client; E2E: pnpm test:e2e\"",
+    "test": "vitest run lib",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -31,6 +31,7 @@
     "eslint": "9.39.5",
     "globals": "16.5.0",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "5.0.2"
   }
 }

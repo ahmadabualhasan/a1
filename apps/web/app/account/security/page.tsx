@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Alert, Button, Card, ConfirmButton, DataTable, Field, Input, PageHeader, Select } from '@codek/ui';
-import { AreaGuard } from '@/components/area-guard';
+import { RoleShell } from '@/components/navs';
 import { DateText } from '@/components/format';
 import { QueryView } from '@/components/query-view';
 import { api, errorMessage, useApi } from '@/lib/api';
@@ -30,7 +30,7 @@ function Security() {
   };
   const home = session?.user.accountType === 'admin' ? '/admin' : session?.user.accountType === 'business' ? '/business' : '/creator';
   return (
-    <main id="main" className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
+    <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader title="Account & security" back={<Link href={home} className="text-sm text-brand-700">← Back</Link>} />
       {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
       <Card title="Password">
@@ -73,14 +73,14 @@ function Security() {
           <Button onClick={() => run(() => api('/privacy/requests', { method: 'POST', json: { requestType: privacyType } }), 'Request received. Our team will follow up.')}>Submit request</Button>
         </div>
       </Card>
-    </main>
+    </div>
   );
 }
 
 export default function SecurityPage() {
   return (
-    <AreaGuard area="any">
+    <RoleShell>
       <Security />
-    </AreaGuard>
+    </RoleShell>
   );
 }
