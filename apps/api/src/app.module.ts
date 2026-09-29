@@ -13,6 +13,8 @@ import { AuthModule } from './auth/auth.module';
 import { SettingsModule } from './settings/settings.service';
 import { StorageModule } from './storage/storage.service';
 import { FeePlanModule } from './billing/fee-plan.service';
+import { QueueModule } from './queue/queue.service';
+import { PaymentsModule } from './payments/payments.module';
 import { AuthGuard } from './auth/auth.guard';
 import { RateLimitGuard } from './common/rate-limit';
 import { HttpExceptionFilter } from './common/http-exception.filter';
@@ -47,6 +49,8 @@ export const CORE_MODULES: Array<Type | DynamicModule> = [
   SettingsModule,
   StorageModule,
   FeePlanModule,
+  QueueModule,
+  PaymentsModule,
   AuthModule,
 ];
 

@@ -3,7 +3,7 @@
 _Last updated: 2026-09-29_
 
 ## Current phase
-Phase 11 — Funding & payouts (Phases 1–10 core complete).
+Phase 12 — Integrations/webhooks/worker/reconciliation (Phases 1–11 complete).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -51,8 +51,16 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   pending→approved→funded→available with FIFO funding allocation and hold release, proportional reversals and
   clawbacks, idempotent balanced postings, invariant verification — TESTED (apps/api/test/pipeline.test.ts).
 
+- Phase 11 (funding/payouts): provider abstraction (sandbox test adapter, PayPal Payouts adapter —
+  CREDENTIAL_REQUIRED), SSRF-safe outbound HTTP client, Idempotency-Key interceptor, merchant funding (sandbox
+  auto-confirm outside production; bank transfer confirmed by finance admin) with FIFO allocation and shortfall view,
+  ledger-derived earnings (pending/approved/available/in-progress/paid/clawback), payout request (whole commissions,
+  clawback netting, minimum threshold, readiness, risk-review block, per-creator lock), provider attempts with retry
+  and final-failure fund return, cancellation, BullMQ producer — TESTED (apps/api/test/payouts.test.ts).
+
 ## Next task
-Phase 11 — funding API (provider abstraction), payouts (request/attempts/retry/failure), earnings views.
+Phase 12 — integrations (adapters, lifecycle, encrypted credentials), webhook ingestion (signature, replay,
+idempotency, raw storage, queue, DLQ), worker app, outbox dispatcher, reconciliation.
 
 ## Environment notes
 - Local dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 via Docker (`codek-pg`), Redis 7.0 (system service).

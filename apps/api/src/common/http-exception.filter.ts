@@ -5,6 +5,7 @@ import { ZodError } from 'zod';
 import { DomainError } from '@codek/domain';
 import { ApiError, ERROR_STATUS, type ApiErrorCode } from './errors';
 import { currentContext } from './request-context';
+import { toJsonSafe } from './json';
 
 interface ErrorBody {
   code: ApiErrorCode;
@@ -28,7 +29,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       this.logger.error({ err: { name: err?.name, message: err?.message, stack: err?.stack }, requestId }, 'Unhandled error');
     }
     if (res.headersSent) return;
-    res.status(body.status).json({ error: { code: body.code, message: body.message, details: body.details, requestId } });
+    res.status(body.status).json({ error: { code: body.code, message: body.message, details: toJsonSafe(body.details), requestId } });
   }
 
   private toBody(e: unknown): ErrorBody {
