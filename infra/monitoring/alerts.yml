@@ -1,0 +1,102 @@
+# Prometheus alerting rules for CODEK. Metrics are exposed by the API at /api/v1/metrics (bearer METRICS_TOKEN)
+# and refreshed by the worker's scheduled jobs. Severity: page = wake someone up; ticket = next business day.
+# Runbooks: docs/RECOVERY.md (section named in each alert's `runbook` annotation).
+groups:
+  - name: codek-financial
+    rules:
+      - alert: LedgerInvariantFailure
+        expr: codek_ledger_invariant_ok == 0
+        for: 0m
+        labels: { severity: page }
+        annotations:
+          summary: Ledger invariant check failed (unbalanced entries or currency imbalance)
+          runbook: "RECOVERY.md#ledger-invariant-failure — stop payout processing, do not edit ledger rows"
+      - alert: LedgerInvariantNotReported
+        expr: absent(codek_ledger_invariant_ok) or (time() - timestamp(codek_ledger_invariant_ok)) > 7200
+        for: 15m
+        labels: { severity: page }
+        annotations:
+          summary: The hourly ledger invariant job has not reported for 2h (worker down?)
+          runbook: "RECOVERY.md#worker-down"
+      - alert: PayoutFailuresElevated
+        expr: codek_payout_failures_24h > 5
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: More than 5 payouts failed in the last 24h
+          runbook: "RECOVERY.md#payout-provider-outage"
+      - alert: CommissionsAwaitingFunding
+        expr: codek_commissions_awaiting_funding > 0
+        for: 72h
+        labels: { severity: ticket }
+        annotations:
+          summary: Approved commissions have been waiting for business funding for 3 days
+      - alert: ReconciliationDifferences
+        expr: codek_reconciliation_unresolved_items > 0
+        for: 24h
+        labels: { severity: ticket }
+        annotations:
+          summary: Unresolved reconciliation differences for more than 24h
+          runbook: "RECOVERY.md#reconciliation-differences"
+
+  - name: codek-pipelines
+    rules:
+      - alert: WebhookDeadLetters
+        expr: increase(codek_webhook_dead_letter_total[1h]) > 0
+        for: 0m
+        labels: { severity: page }
+        annotations:
+          summary: Webhook events were dead-lettered in the last hour
+          runbook: "RECOVERY.md#webhook-dead-letters — inspect Admin → Integrations & webhooks, fix mapping, replay"
+      - alert: WebhookBacklog
+        expr: codek_webhook_backlog > 500
+        for: 15m
+        labels: { severity: page }
+        annotations:
+          summary: More than 500 webhook events waiting to be processed for 15 minutes
+          runbook: "RECOVERY.md#worker-down"
+      - alert: QueueBacklog
+        expr: sum by (queue) (codek_queue_jobs{state="waiting"}) > 1000
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: "Queue {{ $labels.queue }} has more than 1000 waiting jobs"
+      - alert: OutboxFailures
+        expr: codek_outbox_failed > 50
+        for: 30m
+        labels: { severity: ticket }
+        annotations:
+          summary: Outbox events are failing repeatedly (notifications/fraud signals delayed)
+      - alert: FraudFlagsPiling
+        expr: codek_fraud_flags_open > 100
+        for: 24h
+        labels: { severity: ticket }
+        annotations:
+          summary: More than 100 fraud flags open for a day — review capacity
+
+  - name: codek-api
+    rules:
+      - alert: ApiErrorRate
+        expr: sum(rate(codek_http_errors_total[5m])) / sum(rate(codek_http_request_duration_seconds_count[5m])) > 0.02
+        for: 10m
+        labels: { severity: page }
+        annotations:
+          summary: More than 2% of API requests return 5xx
+      - alert: ApiLatencyHigh
+        expr: histogram_quantile(0.95, sum by (le) (rate(codek_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 15m
+        labels: { severity: ticket }
+        annotations:
+          summary: API p95 latency above 1s for 15 minutes
+      - alert: AuthFailureSpike
+        expr: sum(rate(codek_auth_failures_total[5m])) * 60 > 30
+        for: 10m
+        labels: { severity: ticket }
+        annotations:
+          summary: More than 30 failed sign-ins per minute (possible credential stuffing)
+      - alert: ApiDown
+        expr: up{job="codek-api"} == 0
+        for: 2m
+        labels: { severity: page }
+        annotations:
+          summary: The API is not responding to metric scrapes

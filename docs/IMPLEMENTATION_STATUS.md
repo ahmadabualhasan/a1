@@ -10,15 +10,15 @@ _Last updated: 2026-09-30_
 4. Continue at **Next task** below. Never restart completed phases.
 
 ## Current phase / task
-- Phase: 18 — Security hardening, accessibility, load tests, backup/restore, recovery (Phases 1–17 complete).
-- Task: security review + MFA (TOTP) E2E, accessibility checks, load scripts (API/webhook/tracking), pg_dump/restore
-  script and tested restore, worker failure/recovery tests.
+- Phase: 19 — Deployment, monitoring, runbooks (Phases 1–18 complete).
+- Task: images verified in CI (`images` job), docs complete; remaining: final release-gate review and final report.
 
 ## Last successful checkpoint
-- CI run #14 (commit b9a3b56) — **success** (build/lint/typecheck/tests + Playwright E2E). Run #12 failed because
-  the e2e job ran `npx playwright` at the repo root (CLI only installed in @codek/web); fixed in b9a3b56.
-- Local (this checkpoint): `pnpm verify` clean; API integration 95/95, web unit 3/3, Playwright E2E 12/12 (stable
-  across 4 consecutive runs).
+- CI run #17 (commit 726d44b) — **success**: build-test (lint, typecheck, unit/integration, audit, secret scan) and
+  e2e (Playwright journey + a11y + backup/restore drill). The only e2e failure in history was run #12 (Playwright CLI
+  invoked from the repo root; fixed in b9a3b56 and green since run #14).
+- Local (this checkpoint): `pnpm verify` clean; API integration 110, domain 53, config 8, database 9, api-client 3,
+  web unit 3, Playwright 30 (E2E + accessibility), load 3; Docker images built and smoke-tested.
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -121,13 +121,25 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   (previously the creator's available balance was left short and later payouts failed) — regression tested;
   campaign reviewers can read campaigns awaiting review (without member-only fields).
 
+- Phase 18 (hardening/QA): OpenAPI-driven authorization sweeps (anonymous 401, cross-tenant, admin 403), MFA TOTP
+  flow, fail-closed credential rate limits during Redis outages, metrics token enforcement, failed-sign-in metric,
+  WCAG 2.1 AA checks (axe) with fixes, dependency audit clean and blocking in CI, load scenarios with correctness
+  checks, backup/restore drill in CI, crash-recovery tests (webhook worker, Redis outage, outbox, payout worker) with
+  sweeper/lease fixes, SMTP delivery test after the nodemailer 10 upgrade — TESTED.
+- Phase 19 (deployment): multi-target Dockerfile (api/worker/web/migrate; non-root, health checks, prod-only deps,
+  optional build CA secret), CI `images` job (build → migrate empty DB in production mode → staging containers →
+  smoke test), Prometheus alert rules + scrape config, smoke-test script, audited first-admin bootstrap script,
+  production seed never publishes placeholder legal docs and sign-up fails closed, TRUST_PROXY hop counts. Docs:
+  ARCHITECTURE, API, ENVIRONMENT, SECURITY, INTEGRATIONS, TESTING, DEPLOYMENT, RECOVERY, ADR-0001..0005 — VERIFIED
+  locally (images built, migrate job on empty DB, smoke test passed).
+
 ## Next task
-Phase 18: hardening/accessibility/load/backup-restore/recovery → Phase 19: Dockerfiles, deployment, monitoring,
-runbooks → final report.
+Final release-gate review (spec §39) and final report. After that: owner decisions in docs/DECISIONS.md and
+provider credentials (below) are required before a production launch.
 
 ## Tests
-- Passing: domain (53), config (5), database invariants (8), API integration (95), web unit (3), Playwright E2E (12).
-  Failing: none.
+- Passing: domain (53), config (8), database (9), API integration (110), api-client (3), web unit (3), Playwright
+  E2E + accessibility (30), load (3). Failing: none.
 
 ## Known issues / blockers
 - None blocking. External credentials required for live providers (see below). Decisions pending: docs/DECISIONS.md.

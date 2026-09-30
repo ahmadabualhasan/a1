@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { cn } from '@codek/ui';
 import { useApi } from '@/lib/api';
 import { useSession } from '@/lib/session';
@@ -18,6 +18,27 @@ export function AppShell({ nav, title, children }: { nav: NavItem[]; title: stri
   const { session, signOut, businessId, setBusinessId } = useSession();
   const unread = useApi<{ unread: number }>(session ? '/notifications/unread-count' : null, { refetchInterval: 60_000 });
   const businesses = useApi<Array<{ id: string; displayName: string }>>(session?.user.accountType === 'business' ? '/businesses' : null);
+  // Descriptive page titles for screen-reader and tab users (WCAG 2.4.2): "<section> · CODEK <area>". The area layout
+  // provides the server-rendered title; after client navigations Next.js re-applies metadata titles, so the section
+  // title is re-asserted whenever <head> changes. The first nav item (dashboard) only matches exactly.
+  const section = nav
+    .filter((n) => pathname === n.href || (n.href !== nav[0]?.href && pathname.startsWith(`${n.href}/`)))
+    .sort((a, b) => b.href.length - a.href.length)[0];
+  const sectionLabel = section?.label;
+  useEffect(() => {
+    const apply = () => {
+      // Pages outside the area nav (notifications, disputes, account, onboarding) use their main heading.
+      const label = sectionLabel ?? document.querySelector('#main h1')?.textContent?.trim() ?? title;
+      const pageTitle = `${label} · CODEK ${title}`;
+      if (document.title !== pageTitle) document.title = pageTitle;
+    };
+    apply();
+    const observer = new MutationObserver(apply);
+    observer.observe(document.head, { subtree: true, childList: true, characterData: true });
+    const main = document.getElementById('main');
+    if (main) observer.observe(main, { subtree: true, childList: true });
+    return () => observer.disconnect();
+  }, [sectionLabel, title, pathname]);
   const links = (
     <ul className="space-y-1">
       {nav.map((n) => {

@@ -13,7 +13,6 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "openapi": "node dist/scripts/export-openapi.js",
-    "seed:demo": "node dist/scripts/seed-demo.js",
     "admin:create": "node dist/scripts/create-admin.js",
     "test:load": "vitest run -c vitest.load.config.ts"
   },
@@ -64,5 +63,8 @@
     "typescript": "5.9.3",
     "unplugin-swc": "2.0.0",
     "vitest": "5.0.2"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }

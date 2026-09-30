@@ -1,0 +1,18 @@
+# Keep build context small and never ship local secrets or data into images.
+**/node_modules
+**/dist
+**/.next
+**/coverage
+**/*.tsbuildinfo
+**/test-results
+**/playwright-report
+**/load-report.md
+.git
+.github
+.env
+.env.*
+!.env.example
+storage-data
+backups
+database/src/generated
+**/.DS_Store

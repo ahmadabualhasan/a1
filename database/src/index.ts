@@ -33,5 +33,5 @@ export function isCheckViolation(err: unknown): boolean {
   return msg.includes('check constraint') || msg.includes('violates check') || msg.includes('CODEK_');
 }
 
-export { seedReferenceData } from './seed/reference-data';
+export { LEGAL_DOCUMENT_TYPES, seedReferenceData } from './seed/reference-data';
 export { useTestDatabase, migrateTestDatabase, resetDatabase } from './test-support';

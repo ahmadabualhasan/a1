@@ -110,3 +110,58 @@ jobs:
         run: bash infra/scripts/db-restore-drill.sh
         env:
           PG_TOOL_PREFIX: docker run --rm -i --network host postgres:18-alpine
+
+  images:
+    runs-on: ubuntu-latest
+    needs: build-test
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: codek
+          POSTGRES_PASSWORD: codek_ci_password
+          POSTGRES_DB: codek_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U codek -d codek_ci" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production images (api, worker, web, migrate)
+        run: |
+          for t in migrate api worker web; do
+            DOCKER_BUILDKIT=1 docker build --target "$t" -t "codek-$t:ci" .
+          done
+          docker images | grep codek
+      - name: Run the migration job against an empty database (production mode)
+        run: |
+          docker run --rm --network host -e APP_ENV=production \
+            -e DATABASE_URL=postgresql://codek:codek_ci_password@localhost:5432/codek_ci codek-migrate:ci
+      - name: Start containers in staging mode and smoke test
+        env:
+          METRICS_TOKEN: ci-only-metrics-token-0123456789abcdef
+        run: |
+          cat > /tmp/ci.env <<ENV
+          APP_ENV=staging
+          DATABASE_URL=postgresql://codek:codek_ci_password@localhost:5432/codek_ci
+          REDIS_URL=redis://localhost:6379
+          AUTH_SECRET=ci-only-auth-secret-not-used-anywhere-else-000000
+          HASH_PEPPER=ci-only-pepper-0000000000
+          SECRETS_MASTER_KEY=Y2ktb25seS1rZXktMzItYnl0ZXMtbG9uZy0wMDAwMDA=
+          STORAGE_DRIVER=local
+          STORAGE_LOCAL_DIR=/tmp/codek-storage
+          METRICS_TOKEN=${METRICS_TOKEN}
+          TRUST_PROXY=1
+          ENV
+          docker run -d --name api --network host --env-file /tmp/ci.env codek-api:ci
+          docker run -d --name worker --network host --env-file /tmp/ci.env codek-worker:ci
+          docker run -d --name web --network host --add-host api:127.0.0.1 codek-web:ci
+          for i in $(seq 1 30); do curl -sf localhost:4000/api/v1/health/ready >/dev/null && curl -sf localhost:3000/ >/dev/null && break; sleep 2; done
+          curl -sf localhost:4100/health/ready
+          WEB_URL=http://localhost:3000 API_URL=http://localhost:4000 bash infra/scripts/smoke-test.sh
+      - name: Container logs (on failure)
+        if: failure()
+        run: for c in api worker web; do echo "== $c"; docker logs "$c" 2>&1 | tail -80; done

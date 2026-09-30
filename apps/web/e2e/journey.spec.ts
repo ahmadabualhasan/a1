@@ -18,6 +18,10 @@ test.describe.serial('creator–business journey', () => {
   let creator: Page;
   let admin: Page;
 
+  test.afterAll(async () => {
+    for (const p of [business, creator, admin]) await p?.context().close();
+  });
+
   test('business signs up, onboards, adds a product and submits a campaign', async ({ browser }) => {
     business = await newUserPage(browser);
     await signUp(business, 'business', 'Rana Business', businessEmail);

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { MetricsService } from '../src/observability/metrics.service';
 import { Client, legalIds, PASSWORD, registerUser, startApp, type TestContext } from './harness';
 
 let ctx: TestContext;
@@ -98,6 +99,26 @@ describe('auth', () => {
     expect(r.body.error.code).toBe('CSRF_REJECTED');
     const noOrigin = await ctx.http().post('/api/v1/auth/sessions/revoke-others').set('Cookie', c.cookies.join('; '));
     expect(noOrigin.status).toBe(403);
+  });
+
+  it('sign-up fails closed while a required legal document is unpublished', async () => {
+    const tos = await ctx.prisma.legalDocument.findFirstOrThrow({ where: { documentType: 'terms_of_service', status: 'published' } });
+    await ctx.prisma.legalDocument.update({ where: { id: tos.id }, data: { status: 'draft' } });
+    try {
+      const c = new Client(ctx);
+      const r = await c.post('/api/v1/auth/sign-up', { role: 'creator', email: `closed-${Date.now()}@example.com`, password: PASSWORD, displayName: 'Closed', acceptedLegalDocumentIds: await legalIds(ctx, 'creator') });
+      expect(r.body.error.code).toBe('FEATURE_DISABLED');
+      expect(r.body.error.details.reason).toBe('LEGAL_DOCUMENTS_NOT_PUBLISHED');
+    } finally {
+      await ctx.prisma.legalDocument.update({ where: { id: tos.id }, data: { status: 'published' } });
+    }
+  });
+
+  it('failed sign-ins are counted for alerting', async () => {
+    const counter = ctx.app.get(MetricsService).authFailures;
+    const before = (await counter.get()).values[0]?.value ?? 0;
+    await new Client(ctx).post('/api/v1/auth/sign-in', { email: 'nobody@example.com', password: 'wrong-password-123' });
+    expect((await counter.get()).values[0]?.value).toBe(before + 1);
   });
 
   it('rate limits sign-in attempts', async () => {

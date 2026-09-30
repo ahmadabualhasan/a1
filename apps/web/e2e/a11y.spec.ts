@@ -23,6 +23,8 @@ test.describe('accessibility', () => {
     const email = uniqueEmail('a11y-creator');
     await signUp(page, 'creator', 'A11y Creator', email);
     await signIn(page, email);
+    await expect(page.getByRole('heading', { name: 'Set up your creator profile' })).toBeVisible();
+    await expect(page).toHaveTitle('Set up your creator profile · CODEK Creator');
     await expectAccessible(page, '/creator/onboarding');
     await page.getByLabel('Handle').fill(`a11y_${Date.now().toString(36)}`);
     await page.getByRole('button', { name: 'Create profile' }).click();
@@ -30,8 +32,14 @@ test.describe('accessibility', () => {
     for (const path of ['/creator', '/creator/marketplace', '/creator/payouts', '/creator/profile', '/notifications', '/account/security']) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
       await expectAccessible(page, path);
     }
+    await page.goto('/creator/payouts');
+    await expect(page).toHaveTitle('Payouts · CODEK Creator');
+    await page.goto('/notifications');
+    await expect(page).toHaveTitle('Notifications · CODEK Creator');
+    await page.context().close();
   });
 
   test('signed-in business screens have no serious WCAG violations', async ({ browser }) => {
@@ -39,6 +47,8 @@ test.describe('accessibility', () => {
     const email = uniqueEmail('a11y-biz');
     await signUp(page, 'business', 'A11y Business', email);
     await signIn(page, email);
+    await expect(page.getByRole('heading', { name: 'Set up your business' })).toBeVisible();
+    await expect(page).toHaveTitle('Set up your business · CODEK Business');
     await expectAccessible(page, '/business/onboarding');
     await page.getByLabel('Legal name').fill('A11y Co');
     await page.getByLabel('Display name').fill('A11y Co');
@@ -50,7 +60,11 @@ test.describe('accessibility', () => {
     for (const path of ['/business', '/business/campaigns/new', '/business/catalog', '/business/sales', '/business/funding', '/business/integrations']) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
       await expectAccessible(page, path);
     }
+    await page.goto('/business/funding');
+    await expect(page).toHaveTitle('Funding · CODEK Business');
+    await page.context().close();
   });
 });

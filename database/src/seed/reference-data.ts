@@ -77,7 +77,10 @@ export async function seedReferenceData(prisma: PrismaClient, opts: { environmen
       create: { key: s.key, kind: s.kind, valueJson: s.value as object, description: s.description, environment },
     });
   }
-  // Legal documents: placeholder published versions so acceptance can be recorded (D-022).
+  // Legal documents (D-022). Outside production, placeholders are published so sign-up and acceptance can be exercised.
+  // In production they are created as DRAFTS: an administrator publishes counsel-approved versions (Admin → Legal),
+  // and sign-up stays closed until every required document type is published.
+  const publishPlaceholders = environment !== 'production';
   for (const doc of LEGAL_DOCUMENT_TYPES) {
     const content = `# ${doc.title}\n\nDRAFT PLACEHOLDER — version ${PLACEHOLDER_LEGAL_VERSION}.\n\nThis document has not been reviewed by legal counsel and must be replaced before production launch (docs/DECISIONS.md D-022).`;
     const existing = await prisma.legalDocument.findFirst({ where: { documentType: doc.type, version: PLACEHOLDER_LEGAL_VERSION, jurisdiction: null } });
@@ -90,9 +93,9 @@ export async function seedReferenceData(prisma: PrismaClient, opts: { environmen
           title: doc.title,
           content,
           contentHash: createHash('sha256').update(content).digest('hex'),
-          status: 'published',
+          status: publishPlaceholders ? 'published' : 'draft',
           requiredFor: [...doc.requiredFor],
-          publishedAt: new Date(),
+          publishedAt: publishPlaceholders ? new Date() : null,
         },
       });
     }

@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Response } from 'express';
 import type { IncomingHttpHeaders } from 'node:http';
 import { fromNodeHeaders } from 'better-auth/node';
-import type { PrismaClient } from '@codek/database';
+import { LEGAL_DOCUMENT_TYPES, type PrismaClient } from '@codek/database';
 import type { Env } from '@codek/config';
 import { ENV } from '../config/config.module';
 import { PRISMA } from '../prisma/prisma.service';
@@ -10,6 +10,7 @@ import { ApiError } from '../common/errors';
 import { currentContext } from '../common/request-context';
 import { AuditService } from '../audit/audit.service';
 import { EmailService } from '../email/email.service';
+import { MetricsService } from '../observability/metrics.service';
 import { AUTH, type AuthInstance } from './auth.tokens';
 import type { Principal } from './principal';
 import type { SignUpDto } from './auth.dto';
@@ -26,6 +27,7 @@ export class AuthService {
     @Inject(ENV) private readonly env: Env,
     private readonly audit: AuditService,
     private readonly email: EmailService,
+    private readonly metrics: MetricsService,
   ) {}
 
   /** Copy Set-Cookie headers from a Better Auth Response onto the Express response. */
@@ -57,6 +59,12 @@ export class AuthService {
 
   async signUp(dto: SignUpDto, headers: IncomingHttpHeaders, res: Response): Promise<{ status: 'verification_required' | 'signed_in' }> {
     const required = await this.requiredLegalDocuments(dto.role);
+    // Fail closed: accounts cannot be created before every required document type has a published version.
+    const requiredTypes = LEGAL_DOCUMENT_TYPES.filter((t) => (t.requiredFor as readonly string[]).includes(dto.role)).map((t) => t.type as string);
+    const unpublished = requiredTypes.filter((t) => !required.some((d) => d.documentType === t));
+    if (unpublished.length) {
+      throw new ApiError('FEATURE_DISABLED', 'Sign-up is not available yet. Please try again later.', { reason: 'LEGAL_DOCUMENTS_NOT_PUBLISHED' });
+    }
     const accepted = new Set(dto.acceptedLegalDocumentIds);
     const missing = required.filter((d) => !accepted.has(d.id));
     if (missing.length) {
@@ -118,6 +126,7 @@ export class AuthService {
     const r = await this.auth.api.signInEmail({ body: { email, password }, headers: fromNodeHeaders(headers), asResponse: true });
     const b = await this.body<{ twoFactorRedirect?: boolean; code?: string; user?: { id: string } }>(r);
     if (!r.ok) {
+      this.metrics.authFailures.inc();
       await this.audit.record({ actorType: 'system', action: 'auth.sign_in_failed', objectType: 'user', reason: b?.code ?? String(r.status) });
       if (r.status === 403 && b?.code === 'EMAIL_NOT_VERIFIED') {
         throw new ApiError('EMAIL_NOT_VERIFIED', 'Please verify your email address before signing in. We sent you a new link.');

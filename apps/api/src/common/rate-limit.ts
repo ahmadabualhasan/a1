@@ -15,6 +15,11 @@ export interface RateLimitOptions {
   windowSeconds: number;
   /** Key by user when authenticated (default) or always by IP. */
   by?: 'user_or_ip' | 'ip';
+  /**
+   * Behaviour when Redis is unavailable. Defaults to fail-closed for credential endpoints (`auth.*` buckets) so an
+   * outage cannot be used to brute-force passwords, MFA or backup codes; other traffic fails open for availability.
+   */
+  failClosed?: boolean;
 }
 
 export const RATE_LIMIT = 'codek:rate-limit';
@@ -46,7 +51,11 @@ export class RateLimitGuard implements CanActivate {
       const results = await this.redis.multi().incr(key).expire(key, opts.windowSeconds + 1).exec();
       count = Number(results?.[0]?.[1] ?? 0);
     } catch {
-      // Fail open on Redis outage for availability, but readiness reports Redis down.
+      // Readiness reports Redis down either way.
+      if (opts.failClosed ?? opts.bucket.startsWith('auth.')) {
+        res.setHeader('Retry-After', '30');
+        throw new ApiError('SERVICE_UNAVAILABLE', 'Sign-in is temporarily unavailable. Please try again shortly.');
+      }
       return true;
     }
     const remaining = Math.max(0, opts.limit - count);

@@ -19,7 +19,7 @@ export async function createApp(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false, bufferLogs: true });
   const env = app.get<Env>(ENV);
   app.useLogger(app.get(Logger));
-  app.set('trust proxy', env.TRUST_PROXY ? 1 : false);
+  app.set('trust proxy', env.TRUST_PROXY > 0 ? env.TRUST_PROXY : false);
   app.disable('x-powered-by');
   app.use(requestIdMiddleware(env.HASH_PEPPER));
   app.use(httpMetricsMiddleware(app.get(MetricsService)));

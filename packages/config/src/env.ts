@@ -28,7 +28,15 @@ export const envSchema = z
     TRACKING_PUBLIC_URL: z.url().default('http://localhost:4000'),
     /** Comma-separated origin allowlist for CORS + CSRF origin checks. */
     CORS_ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
-    TRUST_PROXY: bool.default(false),
+    /**
+     * Reverse-proxy hops to trust for the client IP (X-Forwarded-For), used by per-IP rate limits and hashed IPs.
+     * `false`/`0` = none, `true` = 1. Set to the number of proxies that APPEND to X-Forwarded-For in front of the API
+     * (e.g. load balancer = 1, CDN + load balancer = 2). The web tier's rewrite proxy forwards the header unchanged.
+     */
+    TRUST_PROXY: z
+      .union([z.enum(['true', 'false']), z.coerce.number().int().min(0).max(10)])
+      .default('false')
+      .transform((v) => (v === 'true' ? 1 : v === 'false' ? 0 : v)),
 
     // Data stores
     DATABASE_URL: z.string().min(1),
@@ -84,7 +92,8 @@ export const envSchema = z
     OUTBOUND_HOST_ALLOWLIST: z.string().default('api-m.sandbox.paypal.com,api-m.paypal.com,myshopify.com'),
 
     // Observability
-    SENTRY_DSN: z.string().optional(),
+    /** Reserved: no error-reporting SDK is bundled in this build, so a value is rejected rather than silently ignored. */
+    SENTRY_DSN: optionalToken(1),
     METRICS_ENABLED: bool.default(true),
     /** Bearer token for the Prometheus scrape endpoint; required in staging/production when metrics are enabled. */
     METRICS_TOKEN: optionalToken(24),
@@ -100,6 +109,9 @@ export const envSchema = z
     }
     if (env.PAYOUT_PROVIDER === 'paypal' && (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET)) {
       ctx.addIssue({ code: 'custom', path: ['PAYPAL_CLIENT_ID'], message: 'PayPal credentials are required when PAYOUT_PROVIDER=paypal' });
+    }
+    if (env.SENTRY_DSN) {
+      ctx.addIssue({ code: 'custom', path: ['SENTRY_DSN'], message: 'Error reporting is not implemented in this build; leave SENTRY_DSN empty (use structured logs + metrics)' });
     }
     if ((env.APP_ENV === 'production' || env.APP_ENV === 'staging') && env.METRICS_ENABLED && !env.METRICS_TOKEN) {
       ctx.addIssue({ code: 'custom', path: ['METRICS_TOKEN'], message: 'METRICS_TOKEN is required when metrics are enabled outside development' });

@@ -141,6 +141,12 @@ describe('reference seed', () => {
     expect(await prisma.legalDocument.count({ where: { status: 'published' } })).toBe(8);
     expect((await prisma.pricingPlan.findUnique({ where: { planKey: 'default' } }))?.feePlanJson).toMatchObject({ basis: 'none' });
   });
+
+  it('never publishes placeholder legal documents in production', async () => {
+    await seedReferenceData(prisma, { environment: 'production' });
+    expect(await prisma.legalDocument.count({ where: { status: 'published' } })).toBe(0);
+    expect(await prisma.legalDocument.count({ where: { status: 'draft', publishedAt: null } })).toBe(8);
+  });
 });
 
 describe('domain constraints', () => {

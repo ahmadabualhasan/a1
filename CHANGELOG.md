@@ -17,7 +17,17 @@ All notable changes to CODEK are documented here. Format: Keep a Changelog; vers
 - Phases 14–16: admin console API with dual approvals, fraud, disputes, audit, legal, privacy; analytics; billing.
 - Phase 17: typed API client, UI kit, public site, auth screens, Creator/Business/Admin areas, shared notifications
   and disputes; Playwright E2E journey across all three roles.
+- Phase 18: security sweeps, MFA flow test, accessibility checks, load scenarios, backup/restore drill, recovery tests.
+- Phase 19: production Dockerfile (api, worker, web, migrate), CI image build + smoke test, alert rules, smoke-test
+  script, admin bootstrap script, operational documentation and ADRs.
+### Security
+- Credential endpoints fail closed when Redis is unavailable; metrics require a token in staging/production;
+  failed sign-ins are counted; production never publishes placeholder legal terms and sign-up fails closed.
+- Dependencies: nodemailer 10.0.12; overrides for mysql2, deepmerge-ts, js-yaml; CI audit now blocking.
 ### Fixed
+- Webhook events stuck in `processing` after a worker crash are re-queued; outbox recovery uses claim leases.
+- Accessibility: contrast, description-list semantics, keyboard-scrollable tables.
+- Removed the dead `seed:demo` script; `admin:create` now exists and is tested.
 - Payouts: a failed or cancelled payout that had netted an outstanding clawback now reverses the netting, so the
   creator's available balance matches their available commissions again (previously later payouts were refused).
 - Campaign reviewers can open campaigns awaiting review.

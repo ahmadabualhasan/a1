@@ -31,6 +31,18 @@ describe('env', () => {
     expect(loadEnv({ ...base, APP_ENV: 'staging', METRICS_TOKEN: 't'.repeat(32) }, { cache: false }).METRICS_TOKEN).toHaveLength(32);
   });
 
+  it('TRUST_PROXY accepts booleans (1 hop) and explicit hop counts', () => {
+    expect(loadEnv({ ...base }, { cache: false }).TRUST_PROXY).toBe(0);
+    expect(loadEnv({ ...base, TRUST_PROXY: 'true' }, { cache: false }).TRUST_PROXY).toBe(1);
+    expect(loadEnv({ ...base, TRUST_PROXY: '2' }, { cache: false }).TRUST_PROXY).toBe(2);
+    expect(() => loadEnv({ ...base, TRUST_PROXY: 'yes' }, { cache: false })).toThrow(/TRUST_PROXY/);
+  });
+
+  it('rejects configuration for integrations that are not part of this build', () => {
+    expect(() => loadEnv({ ...base, SENTRY_DSN: 'https://key@sentry.example/1' }, { cache: false })).toThrow(/SENTRY_DSN/);
+    expect(loadEnv({ ...base, SENTRY_DSN: '' }, { cache: false }).SENTRY_DSN).toBeUndefined();
+  });
+
   it('requires S3 credentials for s3 storage', () => {
     expect(() => loadEnv({ ...base, STORAGE_DRIVER: 's3' }, { cache: false })).toThrow(/S3_BUCKET/);
   });

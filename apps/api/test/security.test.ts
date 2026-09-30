@@ -1,7 +1,9 @@
 import { createHmac, randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import { buildOpenApi } from '../src/app.factory';
+import type { Redis } from 'ioredis';
+import { REDIS } from '../src/redis/redis.module';
 import { Client, PASSWORD, registerUser, setupBusiness, startApp, type TestContext } from './harness';
 
 let ctx: TestContext;
@@ -171,6 +173,22 @@ describe('security', () => {
     await b2.post('/api/v1/auth/sign-in', { email, password: PASSWORD });
     expect((await b2.post('/api/v1/auth/mfa/verify-backup-code', { code: backupCodes[0] })).status).toBe(400);
     expect((await b2.get('/api/v1/auth/session')).status).toBe(401);
+  });
+
+  it('during a Redis outage credential endpoints fail closed while ordinary traffic stays available', async () => {
+    const redis = ctx.app.get<Redis>(REDIS);
+    const spy = vi.spyOn(redis, 'multi').mockImplementation(() => {
+      throw new Error('ECONNREFUSED');
+    });
+    try {
+      const signIn = await new Client(ctx).post('/api/v1/auth/sign-in', { email: 'x@example.com', password: 'whatever-password-1' });
+      expect(signIn.status).toBe(503);
+      expect(signIn.headers['retry-after']).toBe('30');
+      expect((await new Client(ctx).post('/api/v1/auth/mfa/verify-backup-code', { code: 'abcd-efgh' })).status).toBe(503);
+      expect((await new Client(ctx).get('/api/v1/pricing')).status).toBe(200);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('responses carry security headers and never leak stack traces', async () => {
