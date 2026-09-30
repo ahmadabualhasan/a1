@@ -21,6 +21,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@codek/database": "workspace:*",
     "@codek/eslint-config": "workspace:*",
     "@codek/tsconfig": "workspace:*",
     "@playwright/test": "1.63.0",
@@ -30,6 +31,7 @@
     "@types/react-dom": "19.3.0",
     "eslint": "9.39.5",
     "globals": "16.5.0",
+    "ioredis": "5.11.1",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
     "vitest": "5.0.2"

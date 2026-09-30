@@ -333,8 +333,10 @@ export class CampaignsService {
   async detail(p: Principal | undefined, id: string) {
     const c = await this.load(id);
     const isMember = !!p && this.access.isBusinessMember(p, c.businessId);
+    // Reviewers must be able to read campaigns awaiting review (read-only; they never get member-only fields).
+    const isReviewer = !!p && p.platformPermissions.has('admin.campaigns.review');
     const visible = ['published', 'active', 'paused'].includes(c.status);
-    if (!isMember && !visible) throw notFound('Campaign');
+    if (!isMember && !isReviewer && !visible) throw notFound('Campaign');
     const card = await this.card(c);
     const detail = {
       ...card,

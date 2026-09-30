@@ -59,6 +59,11 @@ describe('campaigns', () => {
     const creator = await setupCreator(ctx);
     expect((await creator.client.post(`/api/v1/admin/campaigns/${d.camp.body.data.id}/approve`)).status).toBe(403);
     const admin = await registerAdmin(ctx, 'support_agent');
+    // Pending campaigns are hidden from creators but readable (without member-only fields) by reviewers.
+    expect((await creator.client.get(`/api/v1/campaigns/${d.camp.body.data.id}`)).status).toBe(404);
+    const preview = await admin.get(`/api/v1/campaigns/${d.camp.body.data.id}`);
+    expect(preview.status).toBe(200);
+    expect(preview.body.data.destinationUrl).toBeUndefined();
     const ap = await admin.post(`/api/v1/admin/campaigns/${d.camp.body.data.id}/approve`);
     expect(ap.status).toBe(200);
     expect(ap.body.data.status).toBe('active');

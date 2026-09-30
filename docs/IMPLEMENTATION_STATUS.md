@@ -1,6 +1,6 @@
 # CODEK — Implementation status (resume state)
 
-_Last updated: 2026-09-29_
+_Last updated: 2026-09-30_
 
 ## Resume instructions (read first)
 1. `git log --oneline | head -20`, `git status` on branch `claude/compassionate-allen-kn8zop`.
@@ -10,12 +10,15 @@ _Last updated: 2026-09-29_
 4. Continue at **Next task** below. Never restart completed phases.
 
 ## Current phase / task
-- Phase: 17 — Web app (public site, Business, Creator, Admin UIs) + typed API client (Phases 1–16 complete).
-- Task: export OpenAPI, generate @codek/api-client, scaffold Next.js App Router app, then build screens.
+- Phase: 18 — Security hardening, accessibility, load tests, backup/restore, recovery (Phases 1–17 complete).
+- Task: security review + MFA (TOTP) E2E, accessibility checks, load scripts (API/webhook/tracking), pg_dump/restore
+  script and tested restore, worker failure/recovery tests.
 
 ## Last successful checkpoint
-- CI run #8 (commit c4566eb, Phase 12) — **success**. Run #7 failed on a test-file type error that was fixed in c4566eb.
-- Local: `pnpm verify` clean; API integration tests 78/78, domain 53/53, config 5/5, database 8/8.
+- CI run #14 (commit b9a3b56) — **success** (build/lint/typecheck/tests + Playwright E2E). Run #12 failed because
+  the e2e job ran `npx playwright` at the repo root (CLI only installed in @codek/web); fixed in b9a3b56.
+- Local (this checkpoint): `pnpm verify` clean; API integration 95/95, web unit 3/3, Playwright E2E 12/12 (stable
+  across 4 consecutive runs).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -99,11 +102,32 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   partnerships), idempotent invoice generation job — TESTED (apps/api/test/billing.test.ts). Payment collection for
   subscription invoices: DECISION NEEDED (D-003) / CREDENTIAL_REQUIRED.
 
+- Phase 17 (web): typed API client from OpenAPI; accessible UI kit; Next.js app with same-origin API proxy and
+  security headers. Public site, auth (sign-up with versioned legal acceptance, sign-in + MFA step, verification,
+  reset, sessions, privacy). Creator area (onboarding, dashboard, marketplace, applications, invitations,
+  partnerships with saved terms/assets/deliverables/messages/timeline, codes & links, sales, earnings, payout method
+  and idempotent payout requests, profile/social/verification). Business area (onboarding, dashboard, settings/team/
+  verification, catalog, campaign create/edit/lifecycle, applications/invitations, creator discovery/invite,
+  partnerships with lifecycle and code controls, sales with approve/reject + counter redemption + manual sales,
+  funding, analytics + CSV, integrations incl. test mode/go-live/secret rotation/health/events/reconciliation,
+  billing). Admin area (overview queues, dual approvals, verification, users, businesses, creators, campaign review,
+  conversions review/reverse/re-attribute, ledger balances/entries/adjustments, fundings/payouts, ledger
+  reconciliation, integrations/webhooks replay/reconciliation items, fraud flags/cases, disputes, moderation, audit
+  log + chain verification, legal documents, settings/pricing, privacy requests). Shared notifications and
+  disputes. Money is formatted from integer minor units and converted with string arithmetic only — TESTED
+  (web unit tests + Playwright journey: business onboarding → campaign → admin approval → creator application →
+  acceptance → code → counter redemption → approval → creator sees 0.550 JOD approved; tenant isolation).
+- Fixes found while building the UI: failed/cancelled payouts that had netted a clawback now restore the clawback
+  (previously the creator's available balance was left short and later payouts failed) — regression tested;
+  campaign reviewers can read campaigns awaiting review (without member-only fields).
+
 ## Next task
-Phase 17 web app + api-client → 18 hardening/E2E/load/backup → 19 deployment.
+Phase 18: hardening/accessibility/load/backup-restore/recovery → Phase 19: Dockerfiles, deployment, monitoring,
+runbooks → final report.
 
 ## Tests
-- Passing: domain (53), config (5), database invariants (8), API integration (94). Failing: none.
+- Passing: domain (53), config (5), database invariants (8), API integration (95), web unit (3), Playwright E2E (12).
+  Failing: none.
 
 ## Known issues / blockers
 - None blocking. External credentials required for live providers (see below). Decisions pending: docs/DECISIONS.md.
@@ -114,3 +138,6 @@ Phase 17 web app + api-client → 18 hardening/E2E/load/backup → 19 deployment
 
 ## Environment notes
 - Dev container: Node 22.22, pnpm 10.33, PostgreSQL 18.6 in Docker (`codek-pg`), Redis 7.0 system service.
+- E2E locally: create/migrate/seed a `codek_e2e` database, build (`pnpm build`), then
+  `DATABASE_URL=…/codek_e2e PW_CHROMIUM_PATH=/opt/pw-browsers/chromium pnpm test:e2e`. The E2E helper refuses to
+  write to databases not named codek_e2e/codek_test/codek_ci; E2E uses the `codek-e2e` Redis namespace.
