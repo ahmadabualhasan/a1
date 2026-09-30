@@ -10,13 +10,16 @@ _Last updated: 2026-09-30_
 4. Continue at **Next task** below. Never restart completed phases.
 
 ## Current phase / task
-- Phase: 19 — Deployment, monitoring, runbooks (Phases 1–18 complete).
-- Task: images verified in CI (`images` job), docs complete; remaining: final release-gate review and final report.
+- Phase: 19 complete — all build phases (1–19) implemented and verified in CI.
+- Task: none open in code. Remaining items require the owner: see docs/RELEASE_GATES.md (staging UAT, counsel-approved
+  legal documents, provider credentials, DECISION NEEDED items).
 
 ## Last successful checkpoint
-- CI run #17 (commit 726d44b) — **success**: build-test (lint, typecheck, unit/integration, audit, secret scan) and
-  e2e (Playwright journey + a11y + backup/restore drill). The only e2e failure in history was run #12 (Playwright CLI
-  invoked from the repo root; fixed in b9a3b56 and green since run #14).
+- CI run #19 (commit f175fe8, run 36653923674) — **success**: build-test (lint, typecheck, unit/integration, blocking
+  dependency audit, secret scan), e2e (Playwright journey + accessibility + backup/restore drill) and images (build
+  api/worker/web/migrate → migrate empty DB in production mode → staging containers → smoke test). Run #18 was
+  cancelled by the newer push (not a failure). The only e2e failure in history was run #12 (Playwright CLI invoked
+  from the repo root; fixed in b9a3b56, green since run #14).
 - Local (this checkpoint): `pnpm verify` clean; API integration 110, domain 53, config 8, database 9, api-client 3,
   web unit 3, Playwright 30 (E2E + accessibility), load 3; Docker images built and smoke-tested.
 
@@ -134,8 +137,8 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   locally (images built, migrate job on empty DB, smoke test passed).
 
 ## Next task
-Final release-gate review (spec §39) and final report. After that: owner decisions in docs/DECISIONS.md and
-provider credentials (below) are required before a production launch.
+Release-gate review done (docs/RELEASE_GATES.md). Next work depends on owner input: decisions marked DECISION NEEDED
+in docs/DECISIONS.md, provider credentials (below), staging environment + UAT, counsel-approved legal documents.
 
 ## Tests
 - Passing: domain (53), config (8), database (9), API integration (110), api-client (3), web unit (3), Playwright
