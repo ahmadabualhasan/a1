@@ -140,6 +140,9 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   runner now shows the 'second approval needed' message), zero-downtime SECRETS_MASTER_KEY rotation
   (`secrets:rotate`), optional ClamAV upload scanning (fail closed) — TESTED; API integration now 113 tests.
 
+- Release-gate hardening: alert rules validated by promtool in CI and `monitoring.test.ts` (every alerted metric
+  exported); expand-only migration guard (`infra/scripts/check-migrations.sh`) in CI and `pnpm verify`.
+
 ## Next task
 Release-gate review done (docs/RELEASE_GATES.md). Next work depends on owner input: decisions marked DECISION NEEDED
 in docs/DECISIONS.md, provider credentials (below), staging environment + UAT, counsel-approved legal documents.

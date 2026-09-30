@@ -10,9 +10,9 @@
 | Security review | ✅ COMPLETED (automated + code review) — external penetration test recommended | docs/SECURITY.md; fixes landed: metrics token, fail-closed credential limits, auth failure metric, legal fail-closed, dependency audit blocking |
 | Backup/restore test | ✅ PASS | `infra/scripts/db-restore-drill.sh` runs in CI after the E2E journey |
 | Staging UAT | ⏳ OWNER ACTION | Requires a staging environment and business/creator testers |
-| Monitoring/alerts configured | ✅ DEFINED — deploy with Prometheus/Alertmanager | `infra/monitoring/alerts.yml` covers §33.2 signals (auth failures, API errors/latency, webhook backlog/failures, reconciliation differences, ledger invariants, funding shortfalls, payout failures, fraud anomalies, API down) |
+| Monitoring/alerts configured | ✅ DEFINED + VALIDATED (promtool in CI; `monitoring.test.ts` proves every alerted metric is exported) — deploy with Prometheus/Alertmanager | `infra/monitoring/alerts.yml` covers §33.2 signals (auth failures, API errors/latency, webhook backlog/failures, reconciliation differences, ledger invariants, funding shortfalls, payout failures, fraud anomalies, API down) |
 | Production smoke tests | ✅ SCRIPT + CI (containers) — ⏳ run against production at launch | `infra/scripts/smoke-test.sh`; CI `images` job runs it against the built containers |
-| Rollback plan tested/documented | ✅ DOCUMENTED — forward-only, expand/contract migrations; image rollback | docs/DEPLOYMENT.md "Migrations and rollback" |
+| Rollback plan tested/documented | ✅ DOCUMENTED + ENFORCED — expand-only migration guard in CI/verify (`check-migrations.sh`), so the previous image runs on the new schema; image rollback | docs/DEPLOYMENT.md "Migrations and rollback" |
 | Reconciliation operational before financial launch | ✅ IMPLEMENTED — needs live provider credentials | nightly ledger + provider reconciliation, admin resolution UI |
 | Legal/compliance review for the target market | ⏳ OWNER / COUNSEL ACTION | D-020..D-022: counsel-approved legal documents (production sign-up stays closed until published), Jordan PDPL review, payment-provider structure |
 

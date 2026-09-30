@@ -60,6 +60,12 @@ jobs:
       - run: pnpm test
       - name: Secret scan (committed files)
         run: bash infra/scripts/check-secrets.sh
+      - name: Migrations are expand-only (rollback safety)
+        run: bash infra/scripts/check-migrations.sh
+      - name: Validate Prometheus alert rules and scrape config
+        run: |
+          docker run --rm -v "$PWD/infra/monitoring:/m:ro" --entrypoint promtool prom/prometheus:v3.5.0 check rules /m/alerts.yml
+          docker run --rm -v "$PWD/infra/monitoring:/m:ro" --entrypoint promtool prom/prometheus:v3.5.0 check config --syntax-only /m/prometheus.yml
       - name: Dependency audit (fails on high or critical advisories)
         run: pnpm audit --audit-level high
 

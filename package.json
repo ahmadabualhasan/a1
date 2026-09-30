@@ -24,7 +24,7 @@
     "dev:web": "pnpm --filter @codek/web dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "pnpm -r --workspace-concurrency=1 run build && pnpm typecheck && pnpm lint && bash infra/scripts/check-secrets.sh"
+    "verify": "pnpm -r --workspace-concurrency=1 run build && pnpm typecheck && pnpm lint && bash infra/scripts/check-secrets.sh && bash infra/scripts/check-migrations.sh"
   },
   "devDependencies": {
     "prettier": "3.6.2",

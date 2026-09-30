@@ -75,6 +75,8 @@ Internet → CDN/WAF (optional) → load balancer/ingress (TLS) → web (Next.js
 ### Migrations and rollback
 
 - Migrations are forward-only and never deleted or edited once merged (`database/prisma/migrations`).
+- `infra/scripts/check-migrations.sh` (CI + `pnpm verify`) rejects destructive statements unless the migration has a
+  reviewed `-- codek:allow-destructive <reason>` line (only for a planned contract step).
 - Use **expand → migrate → contract**: add nullable columns/tables first (compatible with the running version), deploy
   code that writes both, backfill, then remove old structures in a later release. This keeps application rollbacks
   possible without database rollbacks.
