@@ -1,3 +1,4 @@
+import { MalwareScanner } from './malware-scanner';
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { File, PrismaClient } from '@codek/database';
@@ -17,6 +18,7 @@ export class FilesService {
     private readonly access: AccessService,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
+    private readonly scanner: MalwareScanner,
   ) {}
 
   /** Store an uploaded file privately, owned by the uploading user until attached to a domain object. */
@@ -25,6 +27,16 @@ export class FilesService {
     if (file.size > maxBytes) throw new ApiError('PAYLOAD_TOO_LARGE', 'The file is too large');
     if (!ALLOWED_UPLOADS[file.mimetype]) throw new ApiError('VALIDATION_FAILED', 'This file type is not supported. Use PNG, JPEG, WebP, PDF or MP4.');
     if (!sniffMatches(file.mimetype, file.buffer)) throw new ApiError('VALIDATION_FAILED', 'The file content does not match its type');
+    let verdict;
+    try {
+      verdict = await this.scanner.scan(file.buffer);
+    } catch {
+      throw new ApiError('SERVICE_UNAVAILABLE', 'Uploads are temporarily unavailable. Please try again shortly.');
+    }
+    if (!verdict.clean) {
+      await this.audit.record({ actorUserId: p.userId, action: 'file.rejected_malware', objectType: 'file', reason: verdict.signature, after: { purpose, mimeType: file.mimetype, size: file.size } });
+      throw new ApiError('VALIDATION_FAILED', 'This file was rejected by the security scan.');
+    }
     const id = randomUUID();
     const key = `uploads/${p.userId}/${purpose}/${id}.${ALLOWED_UPLOADS[file.mimetype]!.ext}`;
     const stored = await this.storage.put(key, file.buffer, file.mimetype);

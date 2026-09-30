@@ -55,6 +55,7 @@ Internet → CDN/WAF (optional) → load balancer/ingress (TLS) → web (Next.js
   `TRUST_PROXY` must equal the number of proxies that append to it (load balancer only = 1; CDN + load balancer = 2).
 - Route provider webhooks (`/api/v1/webhooks/*`) straight to the API service; keep request bodies unmodified (the raw
   body is signature-verified).
+- Run a clamd sidecar/service (e.g. `clamav/clamav`) and set `MALWARE_SCANNER=clamav` so uploads are scanned.
 - Only the web tier (and optionally the webhook path) is public. PostgreSQL, Redis and the worker are private.
 - Scrape metrics from `/api/v1/metrics` with `Authorization: Bearer $METRICS_TOKEN` (infra/monitoring/).
 

@@ -41,6 +41,8 @@ deployed environments inject values from the secret manager. Never commit real v
 | `STORAGE_DRIVER` | local | `s3` requires `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` (+ region/endpoint in .env.example). |
 | `STORAGE_LOCAL_DIR` | ./storage-data | Development only. |
 | `MAX_UPLOAD_BYTES` | 10485760 | |
+| `MALWARE_SCANNER` | none | `clamav` streams each upload to clamd before storage; infected files are rejected and audited; scanner errors reject the upload (503). Recommended in production. |
+| `CLAMAV_HOST` / `CLAMAV_PORT` / `CLAMAV_TIMEOUT_MS` | localhost / 3310 / 15000 | clamd TCP endpoint (e.g. a `clamav/clamav` sidecar). |
 | `EMAIL_DRIVER` | log | `log` is refused in production. `smtp` requires `SMTP_HOST`. |
 | `EMAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURE` | | CREDENTIAL REQUIRED for real email. |
 

@@ -66,6 +66,11 @@ export const envSchema = z
     S3_ACCESS_KEY_ID: z.string().optional(),
     S3_SECRET_ACCESS_KEY: z.string().optional(),
     S3_FORCE_PATH_STYLE: bool.default(true),
+    /** Upload malware scanning: `none` (default) or `clamav` (clamd INSTREAM over TCP; uploads fail closed if unreachable). */
+    MALWARE_SCANNER: z.enum(['none', 'clamav']).default('none'),
+    CLAMAV_HOST: z.string().default('localhost'),
+    CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
+    CLAMAV_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
     MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
 
     // Email

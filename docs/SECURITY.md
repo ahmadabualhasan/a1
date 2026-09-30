@@ -41,7 +41,8 @@ listed here is covered by an automated test unless marked otherwise.
   (SSRF).
 
 ## Files
-- MIME allowlist plus magic-byte sniffing, size limit, private storage keys, downloads authorized per object.
+- MIME allowlist plus magic-byte sniffing, size limit, optional ClamAV scan before storage (fail closed; infected
+  uploads audited), private storage keys, downloads authorized per object.
 
 ## Secrets and data protection
 - Secrets only from the environment/secret manager; `.env` is git-ignored; CI secret scan
@@ -65,5 +66,4 @@ Report vulnerabilities privately to the security contact configured by the opera
 DECISIONS). Do not open public issues for security reports.
 
 ## Known gaps
-See docs/KNOWN_LIMITATIONS.md (e.g. no malware scanning of uploads, master-key rotation tooling, WAF/bot management
-is an infrastructure responsibility).
+See docs/KNOWN_LIMITATIONS.md (e.g. WAF/bot management is an infrastructure responsibility).

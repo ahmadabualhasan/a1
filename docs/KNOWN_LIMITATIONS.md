@@ -14,8 +14,8 @@ Only real, current limitations are listed. Updated at every checkpoint.
   available commission cannot be paid partially.
 - **Legal documents in production** are created as drafts by the seed; sign-up stays closed until an administrator
   publishes counsel-approved versions of every required document (Admin → Legal).
-- **Uploads are not malware-scanned** (MIME allowlist + magic-byte sniffing + size limit only). Add a scanning step
-  (e.g. ClamAV sidecar or storage-provider scanning) before accepting untrusted files at scale.
+- **Upload malware scanning is opt-in** (`MALWARE_SCANNER=clamav` + a clamd service); with the default `none` only the
+  MIME allowlist, magic-byte sniffing and size limit apply.
 - **Secret backends / error reporting**: only the local AES-256-GCM secret store is implemented; `aws-secrets-manager`
   and `SENTRY_DSN` are rejected at startup rather than silently ignored.
 - **Web → API proxy and client IPs**: the Next.js rewrite proxy forwards `X-Forwarded-For` unchanged; correct per-IP

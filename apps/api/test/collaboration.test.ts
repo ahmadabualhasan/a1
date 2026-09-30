@@ -1,4 +1,7 @@
+import { createServer, type AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Env } from '@codek/config';
+import { ENV } from '../src/config/config.module';
 import { OutboxDispatcher } from '../src/outbox/outbox.dispatcher';
 import { SettingsService } from '../src/settings/settings.service';
 import { registerAdmin, setupCreator, setupPartnership, startApp, type TestContext } from './harness';
@@ -77,6 +80,49 @@ describe('messaging', () => {
 });
 
 describe('uploads', () => {
+  it('scans uploads with ClamAV when enabled: clean accepted, infected rejected and audited, scanner down fails closed', async () => {
+    // Minimal clamd INSTREAM server: reads length-prefixed chunks until a zero-length chunk, flags the EICAR marker.
+    const server = createServer((sock) => {
+      let buf = Buffer.alloc(0);
+      sock.on('data', (c) => {
+        buf = Buffer.concat([buf, c]);
+        const cmd = buf.indexOf(0);
+        if (cmd < 0) return;
+        let off = cmd + 1;
+        const body: Buffer[] = [];
+        while (off + 4 <= buf.length) {
+          const len = buf.readUInt32BE(off);
+          if (len === 0) {
+            const content = Buffer.concat(body).toString('latin1');
+            sock.end(content.includes('EICAR-STANDARD-ANTIVIRUS-TEST-FILE') ? 'stream: Eicar-Test-Signature FOUND\0' : 'stream: OK\0');
+            return;
+          }
+          if (off + 4 + len > buf.length) return;
+          body.push(buf.subarray(off + 4, off + 4 + len));
+          off += 4 + len;
+        }
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const env = ctx.app.get<Env>(ENV);
+    const saved = { MALWARE_SCANNER: env.MALWARE_SCANNER, CLAMAV_HOST: env.CLAMAV_HOST, CLAMAV_PORT: env.CLAMAV_PORT };
+    Object.assign(env, { MALWARE_SCANNER: 'clamav', CLAMAV_HOST: '127.0.0.1', CLAMAV_PORT: (server.address() as AddressInfo).port });
+    try {
+      const s = await setupPartnership(ctx);
+      expect((await upload(s.creator.client, 'message_attachment', PNG, 'image/png')).status).toBe(201);
+      const infected = Buffer.concat([PNG, Buffer.from('X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*')]);
+      const bad = await upload(s.creator.client, 'message_attachment', infected, 'image/png');
+      expect(bad.status).toBe(400);
+      expect(bad.body.error.message).toMatch(/security scan/);
+      expect(await ctx.prisma.auditLog.count({ where: { action: 'file.rejected_malware', reason: 'Eicar-Test-Signature' } })).toBeGreaterThan(0);
+      await new Promise<void>((r) => server.close(() => r()));
+      expect((await upload(s.creator.client, 'message_attachment', PNG, 'image/png')).status).toBe(503);
+    } finally {
+      Object.assign(env, saved);
+      server.close();
+    }
+  });
+
   it('accepts sniffed images, rejects spoofed types and SVG, and enforces ownership on attach/download', async () => {
     const s = await setupPartnership(ctx);
     const ok = await upload(s.creator.client, 'message_attachment', PNG, 'image/png');
