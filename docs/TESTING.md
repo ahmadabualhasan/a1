@@ -5,7 +5,7 @@
 | Domain unit tests (money, commission, fees, attribution, ledger postings, state machines, URL safety) | `packages/domain/src/*.test.ts` | `pnpm test` / CI | 53 |
 | Config validation (production guards) | `packages/config/src/env.test.ts` | `pnpm test` / CI | 7 |
 | Database invariants (balanced/immutable ledger, audit chain, no-delete, seed) on PostgreSQL 18 | `database/test/invariants.test.ts` | `pnpm test` / CI | 9 |
-| API integration (real PostgreSQL + Redis, HTTP through the Nest app) | `apps/api/test/*.test.ts` | `pnpm test` / CI | 110 |
+| API integration (real PostgreSQL + Redis, HTTP through the Nest app) | `apps/api/test/*.test.ts` | `pnpm test` / CI | 113 |
 | API client helpers | `packages/api-client` | `pnpm test` / CI | 3 |
 | Web unit (string-based rate/money conversion) | `apps/web/lib/*.test.ts` | `pnpm test` / CI | 3 |
 | E2E journeys, public pages, WCAG 2.1 A/AA (axe) — desktop + mobile | `apps/web/e2e/*.spec.ts` (Playwright, real API + web) | `pnpm test:e2e` / CI | 30 |
@@ -28,7 +28,9 @@
 - **collaboration / admin / analytics / billing** — notifications, messaging moderation, uploads, deliverables,
   dual approvals, fraud, disputes, audit chain, privacy, KPI provenance and ledger cross-check, fee plan snapshots.
 - **recovery** — crashed webhook worker, Redis down at ingest, crashed outbox dispatcher, crashed payout worker.
-- **email-smtp / create-admin** — SMTP delivery through an in-process server; audited admin bootstrap.
+- **email-smtp / create-admin / secret-rotation** — SMTP delivery through an in-process server; audited admin
+  bootstrap; master-key rotation. Uploads include ClamAV scanning against an in-process clamd; payouts include
+  provider-returned payouts.
 
 ## Running locally
 ```bash

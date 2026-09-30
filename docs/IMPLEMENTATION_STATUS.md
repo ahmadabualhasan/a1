@@ -1,6 +1,6 @@
 # CODEK — Implementation status (resume state)
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-09-30 (post-release-gate work)_
 
 ## Resume instructions (read first)
 1. `git log --oneline | head -20`, `git status` on branch `claude/compassionate-allen-kn8zop`.
@@ -136,12 +136,16 @@ IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQ
   ARCHITECTURE, API, ENVIRONMENT, SECURITY, INTEGRATIONS, TESTING, DEPLOYMENT, RECOVERY, ADR-0001..0005 — VERIFIED
   locally (images built, migrate job on empty DB, smoke test passed).
 
+- Post-gate work (no owner input needed): provider-returned payouts via dual-approved admin action (+ admin UI
+  runner now shows the 'second approval needed' message), zero-downtime SECRETS_MASTER_KEY rotation
+  (`secrets:rotate`), optional ClamAV upload scanning (fail closed) — TESTED; API integration now 113 tests.
+
 ## Next task
 Release-gate review done (docs/RELEASE_GATES.md). Next work depends on owner input: decisions marked DECISION NEEDED
 in docs/DECISIONS.md, provider credentials (below), staging environment + UAT, counsel-approved legal documents.
 
 ## Tests
-- Passing: domain (53), config (8), database (9), API integration (110), api-client (3), web unit (3), Playwright
+- Passing: domain (53), config (8), database (9), API integration (113), api-client (3), web unit (3), Playwright
   E2E + accessibility (30), load (3). Failing: none.
 
 ## Known issues / blockers

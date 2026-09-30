@@ -2,7 +2,7 @@
 
 | Gate | Status | Evidence |
 |---|---|---|
-| All critical unit/integration/E2E tests pass | ✅ PASS | CI build-test + e2e jobs; local: API 110, domain 53, database 9, config 8, api-client 3, web 3, Playwright 30 |
+| All critical unit/integration/E2E tests pass | ✅ PASS | CI build-test + e2e jobs; local: API 113, domain 53, database 9, config 8, api-client 3, web 3, Playwright 30 |
 | Webhook security / replay / idempotency | ✅ PASS | `webhooks.test.ts`, load test (duplicate deliveries), `recovery.test.ts` |
 | Financial commission / refund / clawback / payout | ✅ PASS | `pipeline.test.ts`, `payouts.test.ts` (incl. clawback netting reversal), domain commission tests |
 | Ledger invariants | ✅ PASS | DB triggers + `invariants.test.ts`; invariant checks after load/recovery; hourly monitor + alert |

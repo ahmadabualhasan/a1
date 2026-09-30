@@ -20,6 +20,7 @@ All notable changes to CODEK are documented here. Format: Keep a Changelog; vers
 - Phase 18: security sweeps, MFA flow test, accessibility checks, load scenarios, backup/restore drill, recovery tests.
 - Phase 19: production Dockerfile (api, worker, web, migrate), CI image build + smoke test, alert rules, smoke-test
   script, admin bootstrap script, operational documentation and ADRs.
+- Provider-returned payouts (dual-approved admin action), master-key rotation tooling, optional ClamAV upload scanning.
 ### Security
 - Credential endpoints fail closed when Redis is unavailable; metrics require a token in staging/production;
   failed sign-ins are counted; production never publishes placeholder legal terms and sign-up fails closed.
