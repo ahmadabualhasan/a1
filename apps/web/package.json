@@ -21,6 +21,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@codek/database": "workspace:*",
     "@codek/eslint-config": "workspace:*",
     "@codek/tsconfig": "workspace:*",

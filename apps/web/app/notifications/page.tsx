@@ -40,7 +40,7 @@ function Inbox() {
                 <div>
                   <p className="font-medium text-slate-900">{!n.readAt && <span className="sr-only">Unread: </span>}{n.title}</p>
                   <p className="text-sm text-slate-600">{n.body}</p>
-                  <p className="mt-1 text-xs text-slate-400"><DateText value={n.createdAt} withTime /></p>
+                  <p className="mt-1 text-xs text-slate-500"><DateText value={n.createdAt} withTime /></p>
                   {internalLink(n.dataJson?.link) && <a className="text-sm text-brand-700 underline" href={internalLink(n.dataJson?.link)!}>Open</a>}
                 </div>
                 {!n.readAt && (

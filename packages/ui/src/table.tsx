@@ -11,7 +11,8 @@ export interface Column<T> {
 export function DataTable<T>({ columns, rows, rowKey, caption, empty }: { columns: Array<Column<T>>; rows: T[]; rowKey: (row: T) => string; caption?: string; empty?: ReactNode }) {
   if (!rows.length && empty) return <>{empty}</>;
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    // Keyboard users must be able to scroll wide tables (WCAG 2.1.1): the scroll container is focusable and labelled.
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300" tabIndex={0} role="region" aria-label={caption || 'Table'}>
       <table className="min-w-full divide-y divide-slate-200 text-sm">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead className="bg-slate-50">

@@ -20,7 +20,7 @@ function SettingRow({ s }: { s: Setting }) {
       <div>
         <p className="font-mono text-sm font-medium">{s.key}</p>
         <p className="text-xs text-slate-500">{s.description}</p>
-        <p className="text-xs text-slate-400">Updated <DateText value={s.updatedAt} withTime /></p>
+        <p className="text-xs text-slate-500">Updated <DateText value={s.updatedAt} withTime /></p>
       </div>
       <label><span className="sr-only">Value for {s.key}</span><Input className="font-mono" value={value} onChange={(e) => setValue(e.target.value)} /></label>
       <Checkbox label="Enabled" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />

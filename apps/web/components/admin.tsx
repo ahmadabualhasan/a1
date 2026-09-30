@@ -38,6 +38,6 @@ export function ReasonButton({ label, title, consequence, onReason, variant = 'd
 }
 
 export function JsonBlock({ value }: { value: unknown }) {
-  if (value == null) return <span className="text-slate-400">—</span>;
+  if (value == null) return <span className="text-slate-500">—</span>;
   return <pre className="max-h-64 max-w-xl overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-2 text-xs">{JSON.stringify(value, null, 2)}</pre>;
 }

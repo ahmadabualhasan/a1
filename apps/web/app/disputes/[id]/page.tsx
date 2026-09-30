@@ -76,7 +76,7 @@ export default function DisputePage({ params }: { params: Promise<{ id: string }
                         {e.description && <p className="whitespace-pre-wrap">{e.description}</p>}
                         {e.externalUrl && <a className="break-all text-brand-700 underline" href={e.externalUrl} target="_blank" rel="noopener noreferrer nofollow">{e.externalUrl}</a>}
                         {e.fileId && <a className="text-brand-700 underline" href={`/api/v1/files/${e.fileId}/download`}>Attachment</a>}
-                        <p className="text-xs text-slate-400"><DateText value={e.createdAt} withTime /></p>
+                        <p className="text-xs text-slate-500"><DateText value={e.createdAt} withTime /></p>
                       </li>
                     ))}
                   </ul>

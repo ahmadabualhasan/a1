@@ -24,6 +24,13 @@ describe('env', () => {
     expect(() => loadEnv({ ...base, APP_ENV: 'production' }, { cache: false })).toThrow(/sandbox payout provider/);
   });
 
+  it('requires a metrics token outside development when metrics are enabled', () => {
+    expect(() => loadEnv({ ...base, APP_ENV: 'staging' }, { cache: false })).toThrow(/METRICS_TOKEN/);
+    expect(() => loadEnv({ ...base, APP_ENV: 'staging', METRICS_ENABLED: 'false' }, { cache: false })).not.toThrow();
+    expect(loadEnv({ ...base, METRICS_TOKEN: '' }, { cache: false }).METRICS_TOKEN).toBeUndefined();
+    expect(loadEnv({ ...base, APP_ENV: 'staging', METRICS_TOKEN: 't'.repeat(32) }, { cache: false }).METRICS_TOKEN).toHaveLength(32);
+  });
+
   it('requires S3 credentials for s3 storage', () => {
     expect(() => loadEnv({ ...base, STORAGE_DRIVER: 's3' }, { cache: false })).toThrow(/S3_BUCKET/);
   });

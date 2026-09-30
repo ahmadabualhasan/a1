@@ -9,7 +9,7 @@ import { RawResponse } from '../common/envelope.interceptor';
 import { ApiError } from '../common/errors';
 import { MetricsService } from './metrics.service';
 
-/** Prometheus scrape endpoint. When METRICS_TOKEN is set, a bearer token is required. */
+/** Prometheus scrape endpoint. With METRICS_TOKEN set (mandatory in staging/production) a bearer token is required. */
 @ApiExcludeController()
 @Controller('metrics')
 export class MetricsController {
@@ -23,7 +23,7 @@ export class MetricsController {
   @Get()
   async scrape(@Headers('authorization') auth: string | undefined, @Res() res: Response) {
     if (!this.env.METRICS_ENABLED) throw new ApiError('NOT_FOUND', 'Not found');
-    const token = process.env.METRICS_TOKEN;
+    const token = this.env.METRICS_TOKEN;
     if (token && !safeEqual(auth ?? '', `Bearer ${token}`)) throw new ApiError('UNAUTHENTICATED', 'Metrics token required');
     const r = await this.metrics.render();
     res.setHeader('Content-Type', r.contentType);

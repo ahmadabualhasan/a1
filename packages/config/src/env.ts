@@ -8,6 +8,9 @@ const bool = z
   .enum(['true', 'false', '1', '0'])
   .transform((v) => v === 'true' || v === '1');
 
+/** Optional secret-like value: an empty string (as in .env.example) means "not set". */
+const optionalToken = (min: number) => z.preprocess((v) => (v === '' ? undefined : v), z.string().min(min).optional());
+
 export const appEnvSchema = z.enum(['development', 'test', 'staging', 'production']);
 export type AppEnv = z.infer<typeof appEnvSchema>;
 
@@ -83,6 +86,8 @@ export const envSchema = z
     // Observability
     SENTRY_DSN: z.string().optional(),
     METRICS_ENABLED: bool.default(true),
+    /** Bearer token for the Prometheus scrape endpoint; required in staging/production when metrics are enabled. */
+    METRICS_TOKEN: optionalToken(24),
   })
   .superRefine((env, ctx) => {
     if (env.STORAGE_DRIVER === 's3') {
@@ -95,6 +100,9 @@ export const envSchema = z
     }
     if (env.PAYOUT_PROVIDER === 'paypal' && (!env.PAYPAL_CLIENT_ID || !env.PAYPAL_CLIENT_SECRET)) {
       ctx.addIssue({ code: 'custom', path: ['PAYPAL_CLIENT_ID'], message: 'PayPal credentials are required when PAYOUT_PROVIDER=paypal' });
+    }
+    if ((env.APP_ENV === 'production' || env.APP_ENV === 'staging') && env.METRICS_ENABLED && !env.METRICS_TOKEN) {
+      ctx.addIssue({ code: 'custom', path: ['METRICS_TOKEN'], message: 'METRICS_TOKEN is required when metrics are enabled outside development' });
     }
     if (env.APP_ENV === 'production') {
       if (env.PAYOUT_PROVIDER === 'sandbox') {

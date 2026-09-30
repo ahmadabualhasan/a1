@@ -36,7 +36,7 @@ export function AppShell({ nav, title, children }: { nav: NavItem[]; title: stri
     <div className="min-h-screen lg:flex">
       <aside className="hidden w-64 shrink-0 border-r border-slate-200 bg-white p-4 lg:block" aria-label={`${title} navigation`}>
         <Link href="/" className="mb-6 block text-lg font-bold tracking-tight text-brand-700">
-          CODEK <span className="text-xs font-medium text-slate-400">{title}</span>
+          CODEK <span className="text-xs font-medium text-slate-500">{title}</span>
         </Link>
         <nav>{links}</nav>
       </aside>

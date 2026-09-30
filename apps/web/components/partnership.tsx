@@ -193,7 +193,7 @@ export function MessagesPanel({ partnershipId }: { partnershipId: string }) {
                 <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.mine ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-900'}`}>
                   {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
                   {m.fileId && <a className="underline" href={`/api/v1/files/${m.fileId}/download`}>Attachment</a>}
-                  <p className={`mt-1 text-[10px] ${m.mine ? 'text-brand-100' : 'text-slate-400'}`}>{new Date(m.createdAt).toLocaleString()}</p>
+                  <p className={`mt-1 text-[10px] ${m.mine ? 'text-brand-100' : 'text-slate-500'}`}>{new Date(m.createdAt).toLocaleString()}</p>
                   {!m.mine && (
                     <button type="button" className="mt-1 text-[10px] underline opacity-70" onClick={async () => { const reason = window.prompt('Why are you reporting this message?'); if (reason) await api(`/messages/${m.id}/report`, { method: 'POST', json: { reason } }); }}>
                       Report
