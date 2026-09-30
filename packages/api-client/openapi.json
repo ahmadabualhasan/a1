@@ -6365,6 +6365,39 @@
         ]
       }
     },
+    "/api/v1/admin/payouts/{id}/returned": {
+      "post": {
+        "operationId": "AdminController_payoutReturned",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutReturnedDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/commissions/{id}/reverse": {
       "post": {
         "operationId": "AdminController_reverse",
@@ -10245,6 +10278,23 @@
           "currency",
           "direction",
           "amountMinor",
+          "reason"
+        ]
+      },
+      "PayoutReturnedDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 2000
+          },
+          "providerReference": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
           "reason"
         ]
       },

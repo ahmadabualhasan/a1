@@ -203,6 +203,46 @@ describe('payouts', () => {
     expect((await ledger.verifyInvariants()).ok).toBe(true);
   });
 
+  it('a payout returned by the provider after settlement is reversed through dual approval and becomes payable again', async () => {
+    const s = await setupPartnership(ctx, { holdPeriodDays: 0 });
+    await s.creator.client.patch('/api/v1/creator/payout-method', { type: 'paypal', email: 'c@paypal.example' });
+    const ev = (type: string, ref: string, extra: Record<string, unknown> = {}) =>
+      normalizedOrderSchema.parse({ eventType: type, externalEventId: `${type}-${randomUUID()}`, externalRef: ref, occurredAt: new Date().toISOString(), currency: 'JOD', grossMinor: 10000, discountCodes: [s.code], ...extra });
+    // Commission 1500 paid, then refunded → 1500 clawback; second sale 3000 → payout nets the clawback (1500 paid out).
+    const ref1 = `o-${randomUUID()}`;
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_CREATED', ref1) });
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_PAID', ref1) });
+    await s.live.client.post(`/api/v1/businesses/${s.live.businessId}/funding`, { amountMinor: 20000, currency: 'JOD', fundingMethod: 'sandbox' }, { 'Idempotency-Key': key() });
+    const p1 = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
+    await payouts.process(p1.body.data.id);
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_REFUNDED', ref1, { refundedTotalMinor: 10000 }) });
+    const ref2 = `o-${randomUUID()}`;
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_CREATED', ref2, { grossMinor: 20000 }) });
+    await pipeline.ingest({ businessId: s.live.businessId, sourceSystem: 'custom', verifiedState: 'verified', event: ev('ORDER_PAID', ref2, { grossMinor: 20000 }) });
+    const p2 = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
+    expect(p2.body.data.amountMinor).toBe(1500);
+    expect((await payouts.process(p2.body.data.id)).status).toBe('paid');
+
+    const a = await registerAdmin(ctx, 'finance_admin');
+    const b = await registerAdmin(ctx, 'finance_admin');
+    expect((await s.creator.client.post(`/api/v1/admin/payouts/${p2.body.data.id}/returned`, { reason: 'Recipient account closed' })).status).toBe(403);
+    const req = await a.post(`/api/v1/admin/payouts/${p2.body.data.id}/returned`, { reason: 'Recipient account closed', providerReference: 'PP-RET-1' });
+    expect(req.body.data.executed).toBe(false);
+    expect(req.body.data.action.approvalState).toBe('pending');
+    const ok = await b.post(`/api/v1/admin/actions/${req.body.data.action.id}/approve`);
+    expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+    const po = await ctx.prisma.payout.findUniqueOrThrow({ where: { id: p2.body.data.id } });
+    expect(po.status).toBe('reversed');
+    const e = await s.creator.client.get('/api/v1/creator/earnings');
+    expect(e.body.data.currencies[0]).toMatchObject({ availableMinor: 1500, clawbackOutstandingMinor: 1500, paidMinor: 1500 });
+    expect(await ctx.prisma.commissionCalculation.count({ where: { partnershipId: s.partnershipId, status: 'available' } })).toBe(1);
+    // Replaying the approval is refused; the creator can be paid again (to a corrected account).
+    expect((await b.post(`/api/v1/admin/actions/${req.body.data.action.id}/approve`)).status).not.toBe(200);
+    const p3 = await s.creator.client.post('/api/v1/creator/payouts/request', { currency: 'JOD' }, { 'Idempotency-Key': key() });
+    expect(p3.body.data.amountMinor).toBe(1500);
+    expect((await ledger.verifyInvariants()).ok).toBe(true);
+  });
+
   it('payout blocked without payout method, during risk review, below minimum; creators isolated', async () => {
     const s = await earningCreator(20000);
     await fund(s, 3000);

@@ -1,3 +1,4 @@
+import { PayoutsService } from '../payouts/payouts.service';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import type { Prisma, PrismaClient, TransactionClient } from '@codek/database';
 import { ACCOUNT_TYPES, assertTransition, customerTotal, Postings, VerificationMachine, type AccountType, type VerificationStatus } from '@codek/domain';
@@ -24,6 +25,7 @@ export class AdminService implements OnModuleInit {
     private readonly commissions: CommissionService,
     private readonly actions: AdminActionsService,
     private readonly notifications: NotificationsService,
+    private readonly payoutsService: PayoutsService,
   ) {}
 
   onModuleInit(): void {
@@ -57,6 +59,12 @@ export class AdminService implements OnModuleInit {
         const r = await this.commissions.applyRefund(tx, conv, total > 0n ? total : 1n, `admin_reversal: ${action.reason}`);
         return { status: r?.status, reversedMinor: r?.reversedMinor, clawbackMinor: r?.clawbackMinor };
       },
+    });
+    this.actions.register('payout.mark_returned', {
+      requestPermission: 'admin.finance.operate',
+      approvePermission: 'admin.finance.approve',
+      dualApproval: () => true,
+      handler: async (tx, action) => this.payoutsService.markReturnedInTx(tx, action.targetId, action.reason, (action.payloadJson as { providerReference?: string | null }).providerReference ?? null),
     });
     this.actions.register('conversion.reattribute', {
       requestPermission: 'admin.conversions.manage',

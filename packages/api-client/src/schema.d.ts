@@ -2644,6 +2644,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/returned": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminController_payoutReturned"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/commissions/{id}/reverse": {
         parameters: {
             query?: never;
@@ -3685,6 +3701,10 @@ export interface components {
             direction: "debit" | "credit";
             amountMinor: number;
             reason: string;
+        };
+        PayoutReturnedDto: {
+            reason: string;
+            providerReference?: string;
         };
         CaseDto: {
             /** @enum {string} */
@@ -7584,6 +7604,29 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AdjustmentDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AdminController_payoutReturned: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutReturnedDto"];
             };
         };
         responses: {

@@ -34,6 +34,7 @@ class AdjustmentDto extends createZodDto(
 class ReattributeDto extends createZodDto(z.object({ partnershipId: z.uuid(), reason })) {}
 class RoleDto extends createZodDto(z.object({ role: z.enum(['platform_admin', 'finance_admin', 'support_agent']), reason })) {}
 class SettingDto extends createZodDto(z.object({ value: z.unknown(), enabled: z.boolean().default(true), reason })) {}
+class PayoutReturnedDto extends createZodDto(z.object({ reason, providerReference: z.string().trim().max(200).optional() })) {}
 class CaseDto extends createZodDto(z.object({ subjectType: z.enum(['creator', 'business', 'partnership', 'conversion', 'integration']), subjectId: z.uuid(), riskLevel: z.enum(['low', 'medium', 'high', 'critical']), summary: z.string().trim().min(10).max(4000), flagIds: z.array(z.uuid()).max(100).default([]), businessId: z.uuid().optional() })) {}
 class CaseTransitionDto extends createZodDto(
   z.object({ to: z.enum(['evidence', 'review', 'decision', 'closed']), reason, resolutionCode: z.enum(['no_fraud', 'confirmed_fraud', 'inconclusive']).optional(), holdCommissions: z.boolean().optional(), releaseHolds: z.boolean().optional() }),
@@ -204,6 +205,12 @@ export class AdminController {
   adjustment(@CurrentPrincipal() p: Principal, @Body() dto: AdjustmentDto) {
     const { reason: r, ...payload } = dto;
     return this.actions.request(p, { actionType: 'ledger.manual_adjustment', targetType: 'ledger_account', targetId: dto.ownerId ?? '00000000-0000-0000-0000-000000000000', reason: r, payload });
+  }
+
+  @RequirePlatformPermission('admin.finance.operate')
+  @Post('admin/payouts/:id/returned')
+  payoutReturned(@CurrentPrincipal() p: Principal, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PayoutReturnedDto) {
+    return this.actions.request(p, { actionType: 'payout.mark_returned', targetType: 'payout', targetId: id, reason: dto.reason, payload: { providerReference: dto.providerReference ?? null } });
   }
 
   @RequirePlatformPermission('admin.finance.operate')

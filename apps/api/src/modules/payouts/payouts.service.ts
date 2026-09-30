@@ -220,8 +220,10 @@ export class PayoutsService {
    * against it becomes outstanding again. The creator's available balance then equals the gross of the commissions
    * that become available again, and the clawback is recovered by the next payout.
    */
-  private async returnFunds(tx: TransactionClient, payout: Payout, kind: 'failed' | 'cancelled', description: string): Promise<void> {
-    await this.ledger.post(tx, Postings.payoutFailed(payout.creatorId, payout.currency, payout.amountMinor), { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:${kind}`, description });
+  private async returnFunds(tx: TransactionClient, payout: Payout, kind: 'failed' | 'cancelled' | 'returned', description: string): Promise<void> {
+    // Before settlement the amount is still in payout clearing; after settlement (provider return) it comes back as cash.
+    const posting = kind === 'returned' ? Postings.payoutReturned(payout.creatorId, payout.currency, payout.amountMinor) : Postings.payoutFailed(payout.creatorId, payout.currency, payout.amountMinor);
+    await this.ledger.post(tx, posting, { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:${kind}`, description });
     const netted = await tx.ledgerEntryLine.findFirst({
       where: { direction: 'credit', entry: { idempotencyKey: `payout:${payout.id}:clawback_netted` } },
       select: { amountMinor: true },
@@ -229,6 +231,23 @@ export class PayoutsService {
     if (netted && netted.amountMinor > 0n) {
       await this.ledger.post(tx, Postings.clawbackNettingReversed(payout.creatorId, payout.currency, netted.amountMinor), { referenceType: 'payout', referenceId: payout.id, idempotencyKey: `payout:${payout.id}:clawback_netting_reversed`, description: 'Clawback netting reversed because the payout did not complete' });
     }
+  }
+
+  /**
+   * The provider returned a payout it had completed (e.g. recipient account closed). Executed through a dual-approved
+   * admin action. The amount (and any clawback netted against it) goes back to the creator's balance and the settled
+   * commissions become available again; history is preserved (payout → `reversed`, new ledger entries only).
+   */
+  async markReturnedInTx(tx: TransactionClient, payoutId: string, reason: string, providerReference: string | null): Promise<{ status: string; amountMinor: bigint }> {
+    const rows = await tx.$queryRaw<Array<{ status: string }>>`SELECT status FROM payouts WHERE id = ${payoutId}::uuid FOR UPDATE`;
+    if (!rows[0]) throw notFound('Payout');
+    assertTransition(PayoutMachine, rows[0].status as PayoutStatus, 'reversed');
+    const payout = await tx.payout.findUniqueOrThrow({ where: { id: payoutId } });
+    await this.returnFunds(tx, payout, 'returned', `Payout returned by provider${providerReference ? ` (${providerReference})` : ''}: ${reason}`);
+    await tx.payout.update({ where: { id: payoutId }, data: { status: 'reversed', failureReasonCode: 'RETURNED_BY_PROVIDER', version: { increment: 1 } } });
+    await tx.commissionCalculation.updateMany({ where: { payoutItems: { some: { payoutId } }, status: 'paid' }, data: { status: 'available', paidAt: null } });
+    await this.outbox.enqueue(tx, { eventType: 'PayoutFailed', aggregateType: 'payout', aggregateId: payoutId, payload: { payoutId, creatorId: payout.creatorId, errorCode: 'RETURNED_BY_PROVIDER' } });
+    return { status: 'reversed', amountMinor: payout.amountMinor };
   }
 
   /** Final failure: funds return to the creator's available balance; commissions become available again. */

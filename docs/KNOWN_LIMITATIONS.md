@@ -8,8 +8,8 @@ Only real, current limitations are listed. Updated at every checkpoint.
   data can prevent attribution. CODEK never claims 100% attribution.
 - **Legal/compliance:** legal documents are placeholders; Jordan PDPL obligations, retention periods and payment-provider
   structure require counsel review before production (see D-020..D-022).
-- **Returned payouts** (provider reverses a completed payout): the ledger posting exists (`payout_returned`) but no
-  automated workflow is wired yet; handle via admin adjustment until provider-specific return events are defined.
+- **Returned payouts** are recorded by finance admins (dual approval) from the provider's notice; automatic
+  detection from provider return webhooks is not wired (needs live PayPal webhook credentials/events).
 - **Payout granularity**: payouts settle whole commissions (D-016); a requested amount smaller than the oldest
   available commission cannot be paid partially.
 - **Legal documents in production** are created as drafts by the seed; sign-up stays closed until an administrator

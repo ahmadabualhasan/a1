@@ -131,7 +131,7 @@ function Payouts() {
   const { run, messages } = useRunner(['/admin/payouts']);
   return (
     <div className="space-y-4">
-      <label className="text-sm"><span className="sr-only">Status</span><Select value={status} onChange={(e) => setStatus(e.target.value)} options={['', 'requested', 'processing', 'paid', 'failed', 'cancelled', 'returned'].map((s) => ({ value: s, label: s || 'All' }))} /></label>
+      <label className="text-sm"><span className="sr-only">Status</span><Select value={status} onChange={(e) => setStatus(e.target.value)} options={['', 'requested', 'processing', 'paid', 'failed', 'cancelled', 'reversed'].map((s) => ({ value: s, label: s || 'All' }))} /></label>
       {messages}
       <PagedList<Payout> key={status} path="/admin/payouts" params={{ status }} empty={<EmptyState title="No payouts" />}>
         {(rows) => (
@@ -142,7 +142,16 @@ function Payouts() {
             { key: 'p', header: 'Provider', render: (r) => r.provider },
             { key: 's', header: 'Status', render: (r) => <StatusBadge status={r.riskHold ? 'on_hold' : r.status} /> },
             { key: 't', header: 'Attempts', render: (r) => r.attempts.map((a) => `#${a.attemptNumber} ${a.status}${a.errorCode ? ` (${a.errorCode})` : ''}`).join(', ') || '—' },
-            { key: 'x', header: '', render: (r) => (['requested', 'processing'].includes(r.status) ? <Button size="sm" variant="secondary" onClick={() => run(`/admin/payouts/${r.id}/process`, {}, 'Processing attempt run.')}>Process now</Button> : null) },
+            {
+              key: 'x',
+              header: '',
+              render: (r) =>
+                ['requested', 'processing'].includes(r.status) ? (
+                  <Button size="sm" variant="secondary" onClick={() => run(`/admin/payouts/${r.id}/process`, {}, 'Processing attempt run.')}>Process now</Button>
+                ) : r.status === 'paid' ? (
+                  <ReasonButton label="Provider returned it" title="Record a returned payout?" consequence="Use when the provider sent a completed payout back (e.g. closed account). The amount returns to the creator's available balance and the commissions become payable again. Include the provider reference in the reason. Needs a second administrator." onReason={(reason) => run(`/admin/payouts/${r.id}/returned`, { reason })} />
+                ) : null,
+            },
           ]} />
         )}
       </PagedList>

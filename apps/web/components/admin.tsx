@@ -14,7 +14,7 @@ export function useRunner(prefixes: string[]) {
     setInfo(null);
     try {
       const r = await api<Record<string, unknown>>(path, { method, json: body });
-      const pending = (r.data as { approvalState?: string } | null)?.approvalState === 'pending';
+      const pending = (r.data as { executed?: boolean } | null)?.executed === false;
       setInfo(pending ? 'Requested. A second administrator must approve this action before it takes effect.' : (ok ?? null));
       await qc.invalidateQueries({ predicate: (q) => prefixes.some((p) => String(q.queryKey[0]).startsWith(p)) });
       return r.data;

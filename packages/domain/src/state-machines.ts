@@ -102,7 +102,7 @@ export const CommissionMachine = machine('commission', {
   available: ['payout_requested', 'reversed', 'clawback'],
   payout_requested: ['processing', 'available', 'reversed'],
   processing: ['paid', 'available'],
-  paid: ['clawback'],
+  paid: ['clawback', 'available'], // available: the provider returned the payout
   reversed: [],
   clawback: [],
 } as const);
