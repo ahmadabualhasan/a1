@@ -2,7 +2,7 @@
   "name": "codek",
   "private": true,
   "version": "0.1.0",
-  "description": "CODEK \u2014 Creator\u2013Business Partnership Marketplace + Attribution Infrastructure + Commission & Payout Platform",
+  "description": "CODEK — Creator–Business Partnership Marketplace + Attribution Infrastructure + Commission & Payout Platform",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.12 <27"
@@ -29,5 +29,12 @@
   "devDependencies": {
     "prettier": "3.6.2",
     "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "mysql2": "3.24.5",
+      "deepmerge-ts": "8.0.2",
+      "js-yaml@>=5.0.0 <5.4.1": "5.4.2"
+    }
   }
 }

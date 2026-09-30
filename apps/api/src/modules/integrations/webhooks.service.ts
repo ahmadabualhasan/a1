@@ -182,10 +182,23 @@ export class WebhooksService {
     return { queued: await this.queues.add(QUEUES.webhookProcessing, 'process', { webhookEventId: ev.id }, { jobId: `wh-${ev.id}-replay-${Date.now()}` }) };
   }
 
-  /** Sweeper: re-enqueue events stuck in received/queued/failed (e.g. Redis was down). */
-  async sweep(olderThanMs = 120_000): Promise<number> {
+  /**
+   * Sweeper: re-enqueue events stuck in received/queued/failed (e.g. Redis was down when they arrived) and events left
+   * in `processing` by a worker that died mid-run or whose job was lost. Re-processing is safe: conversions dedupe by
+   * event id under a per-order lock.
+   */
+  async sweep(olderThanMs = 120_000, stuckProcessingMs = 15 * 60_000): Promise<number> {
+    const now = Date.now();
     const stuck = await this.prisma.webhookEvent.findMany({
-      where: { processingState: { in: ['received', 'queued', 'failed'] }, signatureValid: true, replayCheckPassed: true, receivedAt: { lte: new Date(Date.now() - olderThanMs) }, integration: { status: 'live' } },
+      where: {
+        signatureValid: true,
+        replayCheckPassed: true,
+        integration: { status: 'live' },
+        OR: [
+          { processingState: { in: ['received', 'queued', 'failed'] }, receivedAt: { lte: new Date(now - olderThanMs) } },
+          { processingState: 'processing', receivedAt: { lte: new Date(now - stuckProcessingMs) } },
+        ],
+      },
       select: { id: true },
       take: 500,
     });

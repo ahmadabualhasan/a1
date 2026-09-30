@@ -18,6 +18,7 @@ export class OutboxHandlers {
   }
 }
 
+const CLAIM_LEASE_MS = 5 * 60_000;
 const MAX_ATTEMPTS = 8;
 
 /**
@@ -42,7 +43,8 @@ export class OutboxDispatcher {
          ORDER BY created_at LIMIT ${limit} FOR UPDATE SKIP LOCKED`;
       if (!rows.length) return [];
       const ids = rows.map((r) => r.id);
-      await tx.outboxEvent.updateMany({ where: { id: { in: ids } }, data: { status: 'processing', attemptCount: { increment: 1 } } });
+      // next_attempt_at doubles as the claim lease while a row is `processing` (see recoverStuck).
+      await tx.outboxEvent.updateMany({ where: { id: { in: ids } }, data: { status: 'processing', attemptCount: { increment: 1 }, nextAttemptAt: new Date(Date.now() + CLAIM_LEASE_MS) } });
       return tx.outboxEvent.findMany({ where: { id: { in: ids } }, orderBy: { createdAt: 'asc' } });
     });
     let published = 0;
@@ -63,8 +65,9 @@ export class OutboxDispatcher {
   }
 
   /** Reset rows stuck in `processing` (worker crashed mid-dispatch). */
-  async recoverStuck(olderThanMs = 5 * 60_000): Promise<number> {
-    const r = await this.prisma.outboxEvent.updateMany({ where: { status: 'processing', createdAt: { lte: new Date(Date.now() - olderThanMs) } }, data: { status: 'failed', nextAttemptAt: new Date() } });
+  async recoverStuck(now = new Date()): Promise<number> {
+    // A claim whose lease expired means the dispatcher died mid-batch. Handlers are idempotent, so re-running is safe.
+    const r = await this.prisma.outboxEvent.updateMany({ where: { status: 'processing', nextAttemptAt: { lte: now } }, data: { status: 'failed', nextAttemptAt: now } });
     return r.count;
   }
 }

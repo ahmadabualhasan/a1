@@ -60,8 +60,8 @@ jobs:
       - run: pnpm test
       - name: Secret scan (committed files)
         run: bash infra/scripts/check-secrets.sh
-      - name: Dependency audit (high+)
-        run: pnpm audit --audit-level high || echo "::warning::pnpm audit reported vulnerabilities; see log"
+      - name: Dependency audit (fails on high or critical advisories)
+        run: pnpm audit --audit-level high
 
   e2e:
     runs-on: ubuntu-latest
@@ -106,3 +106,7 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm --filter @codek/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      - name: Backup → restore → integrity drill (uses the data created by the E2E journey)
+        run: bash infra/scripts/db-restore-drill.sh
+        env:
+          PG_TOOL_PREFIX: docker run --rm -i --network host postgres:18-alpine
