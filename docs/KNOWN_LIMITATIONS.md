@@ -16,8 +16,6 @@ Only real, current limitations are listed. Updated at every checkpoint.
   publishes counsel-approved versions of every required document (Admin → Legal).
 - **Uploads are not malware-scanned** (MIME allowlist + magic-byte sniffing + size limit only). Add a scanning step
   (e.g. ClamAV sidecar or storage-provider scanning) before accepting untrusted files at scale.
-- **Master key rotation**: rotating `SECRETS_MASTER_KEY` requires re-encrypting stored integration credentials; no
-  automated re-encryption tool exists yet.
 - **Secret backends / error reporting**: only the local AES-256-GCM secret store is implemented; `aws-secrets-manager`
   and `SENTRY_DSN` are rejected at startup rather than silently ignored.
 - **Web → API proxy and client IPs**: the Next.js rewrite proxy forwards `X-Forwarded-For` unchanged; correct per-IP

@@ -30,6 +30,7 @@ deployed environments inject values from the secret manager. Never commit real v
 | `AUTH_SECRET` | ≥ 32 chars. Rotating it signs everyone out. |
 | `HASH_PEPPER` | ≥ 16 chars. Pepper for hashed IPs/user agents/customer refs. Rotate only on compromise. |
 | `SECRETS_MASTER_KEY` | Base64 32-byte key for AES-256-GCM encryption of integration credentials. Escrow it. |
+| `SECRETS_MASTER_KEY_PREVIOUS` | Only during a key rotation (decrypt fallback); remove after `secrets:rotate`. |
 | `SECRETS_BACKEND` | `local-encrypted` (default). `aws-secrets-manager` is rejected at startup (not in this build). |
 | `AUTH_REQUIRE_EMAIL_VERIFICATION` | true. Must be true in production. |
 | `SESSION_TTL_SECONDS` | 604800 (7 days). |

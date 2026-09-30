@@ -81,6 +81,8 @@ integration secrets (custom integrations: Rotate secret); reset MFA only after i
 ### Secret rotation
 - `AUTH_SECRET`: rotating signs out every user — schedule it.
 - `HASH_PEPPER`: rotation breaks correlation of historical hashed IP/customer references; only rotate on compromise.
-- `SECRETS_MASTER_KEY`: requires re-encrypting stored credentials (not automated in this build — see
-  KNOWN_LIMITATIONS); rotate only with a planned migration.
+- `SECRETS_MASTER_KEY` (zero downtime): deploy with the new key in `SECRETS_MASTER_KEY` and the old one in
+  `SECRETS_MASTER_KEY_PREVIOUS` (reads fall back to it), run `node dist/scripts/rotate-secrets.js` in the api image
+  (re-encrypts every stored credential; must report 0 failures), then remove `SECRETS_MASTER_KEY_PREVIOUS` and
+  redeploy. Destroy the old key per policy.
 - `METRICS_TOKEN`, SMTP, PayPal, S3 credentials: rotate in the secret manager and restart the affected services.

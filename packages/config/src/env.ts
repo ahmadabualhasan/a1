@@ -53,6 +53,8 @@ export const envSchema = z
     HASH_PEPPER: z.string().min(16),
     /** base64-encoded 32-byte key for the local encrypted secret store (AES-256-GCM). */
     SECRETS_MASTER_KEY: z.string().min(40),
+    /** Previous master key, set only during a rotation (decrypt fallback until `secrets:rotate` has re-encrypted). */
+    SECRETS_MASTER_KEY_PREVIOUS: optionalToken(40),
     SECRETS_BACKEND: z.enum(['local-encrypted', 'aws-secrets-manager']).default('local-encrypted'),
 
     // Storage

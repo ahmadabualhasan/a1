@@ -21,6 +21,7 @@ export const SECRET_STORE = Symbol('SECRET_STORE');
 @Injectable()
 export class LocalEncryptedSecretStore implements SecretStore {
   private readonly key: Buffer;
+  private readonly previousKey: Buffer | null;
 
   constructor(
     @Inject(PRISMA) private readonly prisma: PrismaClient,
@@ -28,6 +29,8 @@ export class LocalEncryptedSecretStore implements SecretStore {
   ) {
     this.key = Buffer.from(env.SECRETS_MASTER_KEY, 'base64');
     if (this.key.length !== 32) throw new Error('SECRETS_MASTER_KEY must decode to 32 bytes');
+    this.previousKey = env.SECRETS_MASTER_KEY_PREVIOUS ? Buffer.from(env.SECRETS_MASTER_KEY_PREVIOUS, 'base64') : null;
+    if (this.previousKey && this.previousKey.length !== 32) throw new Error('SECRETS_MASTER_KEY_PREVIOUS must decode to 32 bytes');
   }
 
   encrypt(plaintext: string): { ciphertext: string; iv: string; authTag: string } {
@@ -37,10 +40,43 @@ export class LocalEncryptedSecretStore implements SecretStore {
     return { ciphertext: ct.toString('base64'), iv: iv.toString('base64'), authTag: cipher.getAuthTag().toString('base64') };
   }
 
-  decrypt(row: { ciphertext: string; iv: string; authTag: string }): string {
-    const decipher = createDecipheriv('aes-256-gcm', this.key, Buffer.from(row.iv, 'base64'));
+  private decryptWith(key: Buffer, row: { ciphertext: string; iv: string; authTag: string }): string {
+    const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(row.iv, 'base64'));
     decipher.setAuthTag(Buffer.from(row.authTag, 'base64'));
     return Buffer.concat([decipher.update(Buffer.from(row.ciphertext, 'base64')), decipher.final()]).toString('utf8');
+  }
+
+  /** Current key first; during a rotation, falls back to the previous key (GCM authentication rejects a wrong key). */
+  decrypt(row: { ciphertext: string; iv: string; authTag: string }): string {
+    try {
+      return this.decryptWith(this.key, row);
+    } catch (err) {
+      if (!this.previousKey) throw err;
+      return this.decryptWith(this.previousKey, row);
+    }
+  }
+
+  /**
+   * Re-encrypt every stored secret with the current key (key rotation). Idempotent: rows already readable with the
+   * current key are re-encrypted too, which is harmless. Fails without changing a row it cannot decrypt.
+   */
+  async reencryptAll(): Promise<{ reencrypted: number; failed: string[] }> {
+    const rows = await this.prisma.encryptedSecret.findMany({ orderBy: { key: 'asc' } });
+    const failed: string[] = [];
+    let reencrypted = 0;
+    for (const row of rows) {
+      let plain: string;
+      try {
+        plain = this.decrypt(row);
+      } catch {
+        failed.push(row.key);
+        continue;
+      }
+      const enc = this.encrypt(plain);
+      await this.prisma.encryptedSecret.update({ where: { key: row.key }, data: { ...enc, keyVersion: { increment: 1 } } });
+      reencrypted++;
+    }
+    return { reencrypted, failed };
   }
 
   async put(key: string, value: string): Promise<void> {
