@@ -46,6 +46,11 @@ _Last updated: 2026-11-11 (owner-delegated commercial defaults implemented)_
   an explicit zero-fee/zero-minimum baseline set in `apps/api/test/global-setup.ts`.
 - Still open: D-023 (fixed-fee/paid-content flow — proposal in DECISIONS.md), D-005, D-020..D-022, D-031.
 
+## Session 2026-11-11 (part 3): one-click demo environment — IMPLEMENTED, start scripts TESTED locally
+- `.devcontainer/` + `infra/scripts/demo-setup.sh`, `demo-start.sh`, `demo-accounts.mjs`; guide in docs/DEMO.md.
+- NOT VERIFIED: the Codespaces container itself (cannot be run from the build environment). If the owner reports a
+  failure, read `.demo/*.log` and the codespace creation log first.
+
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
 

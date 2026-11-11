@@ -1,0 +1,12 @@
+{
+  "name": "CODEK demo",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:24",
+  "features": { "ghcr.io/devcontainers/features/docker-in-docker:2": {} },
+  "postCreateCommand": "bash infra/scripts/demo-setup.sh",
+  "postStartCommand": "bash infra/scripts/demo-start.sh",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "CODEK website", "onAutoForward": "openBrowser" },
+    "4000": { "label": "CODEK API (internal)", "onAutoForward": "silent" }
+  }
+}

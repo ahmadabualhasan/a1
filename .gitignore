@@ -24,3 +24,4 @@ test-results/
 test-results/
 load-report.md
 dump.rdb
+.demo/

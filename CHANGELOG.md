@@ -3,6 +3,8 @@
 All notable changes to CODEK are documented here. Format: Keep a Changelog; versions follow SemVer once released.
 
 ## [Unreleased]
+### Added (2026-11-11)
+- One-click development demo for GitHub Codespaces (`.devcontainer`, `infra/scripts/demo-*.sh`, docs/DEMO.md).
 ### Changed (2026-11-11, owner-delegated provisional defaults)
 - Seeded default fee plan is now 10% of the creator commission, charged to the business on top of the commission (D-003).
 - Seeded minimum payout is 10 major units per currency (D-017); `GET /creator/earnings` returns `minimumPayoutMinor`
