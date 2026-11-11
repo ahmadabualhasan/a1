@@ -1,6 +1,6 @@
 # CODEK — Implementation status (resume state)
 
-_Last updated: 2026-09-30 (post-release-gate work)_
+_Last updated: 2026-11-11 (resume session: health re-verified, no code changes)_
 
 ## Resume instructions (read first)
 1. `git log --oneline | head -20`, `git status` on branch `claude/compassionate-allen-kn8zop`.
@@ -22,6 +22,17 @@ _Last updated: 2026-09-30 (post-release-gate work)_
   from the repo root; fixed in b9a3b56, green since run #14).
 - Local (this checkpoint): `pnpm verify` clean; API integration 110, domain 53, config 8, database 9, api-client 3,
   web unit 3, Playwright 30 (E2E + accessibility), load 3; Docker images built and smoke-tested.
+
+## Resume session 2026-11-11 (verification only)
+- Re-ran the health checks at commit d542ac6 in a fresh container: `pnpm verify` clean; domain 53, config 8,
+  api-client 3, database 9, API integration 114, web unit 3, Playwright E2E + accessibility 30 — all passing.
+  Not re-run in this session: load tests, Docker image build/smoke test (no Docker daemon), backup/restore drill.
+- Environment caveats of that container (not project defects): PostgreSQL 16.15 instead of 18; `binaries.prisma.sh`
+  blocked by network policy, so `prisma migrate deploy` could not run. `prisma generate` was run with
+  `PRISMA_SCHEMA_ENGINE_BINARY` set (generate does not use that engine) and the four migration SQL files were
+  applied with `psql`; the test helper was patched locally (not committed) to skip its own `migrate deploy`.
+  `migrate deploy` itself remains verified by the CI `images` job only.
+- No open code task. Work is still blocked on owner input (see **Next task**).
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -148,7 +159,7 @@ Release-gate review done (docs/RELEASE_GATES.md). Next work depends on owner inp
 in docs/DECISIONS.md, provider credentials (below), staging environment + UAT, counsel-approved legal documents.
 
 ## Tests
-- Passing: domain (53), config (8), database (9), API integration (113), api-client (3), web unit (3), Playwright
+- Passing: domain (53), config (8), database (9), API integration (114), api-client (3), web unit (3), Playwright
   E2E + accessibility (30), load (3). Failing: none.
 
 ## Known issues / blockers
