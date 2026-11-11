@@ -3,6 +3,10 @@
 All notable changes to CODEK are documented here. Format: Keep a Changelog; versions follow SemVer once released.
 
 ## [Unreleased]
+### Security (2026-11-11)
+- Dependency upgrades for new high/critical advisories that failed the CI audit gate: next 16.3.7 → 16.4.6,
+  better-auth 1.7.6 → 1.7.20, zod 4.6.5 → 4.6.7, multer 2.4.0 → 2.5.0 (also forced for @nestjs/platform-express),
+  overrides for body-parser 2.4.0, vite 8.3.8, source-map-js 1.2.2. `pnpm audit --audit-level high` is clean again.
 ### Added (2026-11-11)
 - One-click development demo for GitHub Codespaces (`.devcontainer`, `infra/scripts/demo-*.sh`, docs/DEMO.md).
 ### Changed (2026-11-11, owner-delegated provisional defaults)

@@ -51,6 +51,12 @@ _Last updated: 2026-11-11 (owner-delegated commercial defaults implemented)_
 - NOT VERIFIED: the Codespaces container itself (cannot be run from the build environment). If the owner reports a
   failure, read `.demo/*.log` and the codespace creation log first.
 
+## Session 2026-11-11 (part 4): CI audit gate fix — TESTED locally
+- CI run #30 failed in `build-test` at the dependency audit: advisories published after 2026-09-30 (next,
+  better-auth, zod, multer, body-parser, vite, source-map-js). Upgraded/overridden (see CHANGELOG); audit clean;
+  `pnpm verify`, `pnpm test` (197) and Playwright (30) pass on the new versions. Confirm the next CI run is green.
+- Recurring task: advisories will keep appearing; re-run `pnpm audit --audit-level high` at each session start.
+
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
 
