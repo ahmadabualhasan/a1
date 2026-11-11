@@ -7,7 +7,7 @@ import { PagedList } from '@/components/paged';
 import { api, errorMessage, toMinorUnits, useApi, useApiMutation } from '@/lib/api';
 
 interface Profile { payoutReadiness: string; payoutMethod: { type: string; email: string } | null }
-interface Earnings { currencies: Array<{ currency: string; availableMinor: number; clawbackOutstandingMinor: number }> }
+interface Earnings { currencies: Array<{ currency: string; availableMinor: number; clawbackOutstandingMinor: number; minimumPayoutMinor: number }> }
 interface Payout {
   id: string;
   amountMinor: number;
@@ -82,6 +82,12 @@ function RequestCard({ earnings, ready }: { earnings: Earnings; ready: boolean }
           <Field label="Amount (optional)" hint="Leave empty to withdraw everything available.">{(p) => <Input {...p} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.000" />}</Field>
         </div>
         {selected && <p className="text-sm text-slate-600">Available: <Money minor={selected.availableMinor} currency={currency} />{Number(selected.clawbackOutstandingMinor) > 0 && <> (after deducting <Money minor={selected.clawbackOutstandingMinor} currency={currency} /> owed from refunds)</>}</p>}
+        {selected && Number(selected.minimumPayoutMinor) > 0 && (
+          <p className="text-sm text-slate-600">
+            Minimum payout: <Money minor={selected.minimumPayoutMinor} currency={currency} />
+            {Number(selected.availableMinor) < Number(selected.minimumPayoutMinor) && <> — you can request a payout once your available amount reaches it.</>}
+          </p>
+        )}
         {!ready && <Alert tone="warning">Add a payout method before requesting a payout.</Alert>}
         {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
         <Button disabled={!ready} loading={busy} onClick={submit}>Request payout</Button>

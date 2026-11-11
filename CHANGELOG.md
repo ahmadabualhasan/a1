@@ -3,6 +3,10 @@
 All notable changes to CODEK are documented here. Format: Keep a Changelog; versions follow SemVer once released.
 
 ## [Unreleased]
+### Changed (2026-11-11, owner-delegated provisional defaults)
+- Seeded default fee plan is now 10% of the creator commission, charged to the business on top of the commission (D-003).
+- Seeded minimum payout is 10 major units per currency (D-017); `GET /creator/earnings` returns `minimumPayoutMinor`
+  and the creator payouts page shows it. Existing databases keep their configured values.
 ### Added
 - Phase 1: monorepo foundation, shared TypeScript/ESLint config, validated environment schema, pure domain package
   (money, commission, attribution, ledger postings, state machines, permissions, events, URL safety), docker compose,

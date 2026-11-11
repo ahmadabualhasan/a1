@@ -2,8 +2,8 @@ import { invariant } from './errors';
 import { assertRate, multiplyRate, type RoundingMode } from './money';
 
 /**
- * CODEK platform fee plan (spec §3.7, §16 billing). The actual take rate is a commercial decision
- * (DECISION NEEDED D-003). The default seeded plan charges 0 until the owner configures pricing.
+ * CODEK platform fee plan (spec §3.7, §16 billing). The take rate is a commercial setting (D-003): the seeded default
+ * plan charges 10% of the creator commission (provisional); operators manage plans in Admin → Settings.
  */
 export type FeeBasis = 'none' | 'percentage_of_commission' | 'percentage_of_sale';
 

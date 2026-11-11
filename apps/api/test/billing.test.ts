@@ -13,7 +13,7 @@ beforeAll(async () => {
 afterAll(async () => ctx.app.close());
 
 describe('billing & pricing', () => {
-  it('public pricing is transparent; default plan charges no fee', async () => {
+  it('public pricing is transparent (zero-fee test baseline; seeded default covered in defaults.test.ts)', async () => {
     const r = await ctx.http().get('/api/v1/pricing');
     expect(r.status).toBe(200);
     expect(r.body.data.find((p: { isDefault: boolean }) => p.isDefault).fee).toBe('No CODEK fee on commissions');

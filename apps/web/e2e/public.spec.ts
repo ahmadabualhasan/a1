@@ -6,7 +6,7 @@ test.describe('public site', () => {
     await expect(page.getByRole('heading', { name: /Creator partnerships that pay on verified sales/ })).toBeVisible();
     await expect(page.getByText(/no platform can attribute every sale/i)).toBeVisible();
     await page.goto('/pricing');
-    await expect(page.getByText('No CODEK fee on commissions')).toBeVisible();
+    await expect(page.getByText('10% of each creator commission')).toBeVisible();
     await page.goto('/terms');
     await expect(page.getByRole('heading', { name: 'Terms of Service' })).toBeVisible();
   });

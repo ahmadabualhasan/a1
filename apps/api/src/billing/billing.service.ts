@@ -10,8 +10,8 @@ import type { Principal } from '../auth/principal';
 import { FeePlanService } from './fee-plan.service';
 
 /**
- * Billing & pricing (spec §3.7, phase 16). Pricing is a pending commercial decision (D-003): the seeded default plan
- * charges no fee and subscriptions are behind the `billing.subscriptions.enabled` flag. Fee plans are frozen into
+ * Billing & pricing (spec §3.7, phase 16). The seeded default plan charges 10% of the creator commission (D-003,
+ * provisional owner-delegated default) and subscriptions are behind the `billing.subscriptions.enabled` flag. Fee plans are frozen into
  * partnership snapshots, so plan changes never rewrite existing commissions. Subscription invoices are issued by the
  * internal provider; payment collection requires a billing provider decision (CREDENTIAL_REQUIRED).
  */

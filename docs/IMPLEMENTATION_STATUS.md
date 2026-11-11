@@ -1,6 +1,6 @@
 # CODEK — Implementation status (resume state)
 
-_Last updated: 2026-11-11 (resume session: health re-verified, no code changes)_
+_Last updated: 2026-11-11 (owner-delegated commercial defaults implemented)_
 
 ## Resume instructions (read first)
 1. `git log --oneline | head -20`, `git status` on branch `claude/compassionate-allen-kn8zop`.
@@ -33,6 +33,18 @@ _Last updated: 2026-11-11 (resume session: health re-verified, no code changes)_
   applied with `psql`; the test helper was patched locally (not committed) to skip its own `migrate deploy`.
   `migrate deploy` itself remains verified by the CI `images` job only.
 - No open code task. Work is still blocked on owner input (see **Next task**).
+
+## Session 2026-11-11 (part 2): owner-delegated commercial defaults — TESTED
+- Owner delegated D-003/D-006/D-007/D-017 to the agent ("choose approximate values, test them").
+- D-003: seeded default fee plan = 10% of creator commission, charged to the business on top of the commission.
+- D-017: seeded minimum payout = 10 major units (JOD 10.000); exposed as `minimumPayoutMinor` in
+  `GET /creator/earnings` and shown on the creator payouts page.
+- D-006/D-007: existing behaviour confirmed as the provisional rule (no code change).
+- Seed only applies these to new databases; an existing database keeps its values (change in Admin → Settings).
+- Tests: `apps/api/test/defaults.test.ts` (6: pricing text, snapshot, fee on top of commission + funding shortfall,
+  half-up rounding, payout minimum, proportional fee reversal); database seed tests (+1). The other API tests run on
+  an explicit zero-fee/zero-minimum baseline set in `apps/api/test/global-setup.ts`.
+- Still open: D-023 (fixed-fee/paid-content flow — proposal in DECISIONS.md), D-005, D-020..D-022, D-031.
 
 ## Status legend
 IMPLEMENTED · TESTED · VERIFIED · BLOCKED · NOT CONFIGURED · CREDENTIAL_REQUIRED
@@ -159,7 +171,7 @@ Release-gate review done (docs/RELEASE_GATES.md). Next work depends on owner inp
 in docs/DECISIONS.md, provider credentials (below), staging environment + UAT, counsel-approved legal documents.
 
 ## Tests
-- Passing: domain (53), config (8), database (9), API integration (114), api-client (3), web unit (3), Playwright
+- Passing: domain (53), config (8), database (10), API integration (120), api-client (3), web unit (3), Playwright
   E2E + accessibility (30), load (3). Failing: none.
 
 ## Known issues / blockers

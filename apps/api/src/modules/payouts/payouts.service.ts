@@ -48,6 +48,7 @@ export class PayoutsService {
     const paid = await this.prisma.payout.groupBy({ by: ['currency'], where: { creatorId, status: 'paid' }, _sum: { amountMinor: true } });
     const inFlight = await this.prisma.payout.groupBy({ by: ['currency'], where: { creatorId, status: { in: ['requested', 'processing'] } }, _sum: { amountMinor: true } });
     const currencies = new Set([...balances.map((b) => b.currency), ...paid.map((x) => x.currency)]);
+    const minimum = await this.settings.get<Record<string, number>>('payouts.minimum_minor', { default: 0 });
     return {
       currencies: [...currencies].map((currency) => {
         const bal = (t: string) => balances.find((b) => b.currency === currency && b.accountType === t)?.balanceMinor ?? 0n;
@@ -58,7 +59,7 @@ export class PayoutsService {
         const paidMinor = paid.find((x) => x.currency === currency)?._sum.amountMinor ?? 0n;
         const inFlightMinor = inFlight.find((x) => x.currency === currency)?._sum.amountMinor ?? 0n;
         const available = availableGross - clawback > 0n ? availableGross - clawback : 0n;
-        return { currency, totalMinor: pending + approved + availableGross + inFlightMinor + paidMinor, pendingMinor: pending, approvedMinor: approved, availableMinor: available, payoutInProgressMinor: inFlightMinor, paidMinor, clawbackOutstandingMinor: clawback };
+        return { currency, totalMinor: pending + approved + availableGross + inFlightMinor + paidMinor, pendingMinor: pending, approvedMinor: approved, availableMinor: available, payoutInProgressMinor: inFlightMinor, paidMinor, clawbackOutstandingMinor: clawback, minimumPayoutMinor: BigInt(minimum[currency] ?? minimum.default ?? 0) };
       }),
       explanation: {
         pending: 'Sales waiting for the business to confirm payment or for approval.',

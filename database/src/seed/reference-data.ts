@@ -20,9 +20,21 @@ export const LEGAL_DOCUMENT_TYPES = [
 
 export const PLACEHOLDER_LEGAL_VERSION = '0.1-draft';
 
+/**
+ * D-017 (provisional, owner-delegated 2026-11-11): minimum payout of 10 major units. `default` covers 2-decimal
+ * currencies (10.00); 3-decimal currencies are listed explicitly (10.000). Operators can change it in settings.
+ */
+export const DEFAULT_PAYOUT_MINIMUM_MINOR: Record<string, number> = { default: 1000, JOD: 10000, KWD: 10000, BHD: 10000, OMR: 10000 };
+
+/**
+ * D-003 (provisional, owner-delegated 2026-11-11): CODEK charges the business 10% of the creator commission, on top
+ * of the commission. Creators receive the full agreed commission. Frozen into each partnership snapshot.
+ */
+export const DEFAULT_FEE_PLAN = { planKey: 'default', basis: 'percentage_of_commission', rate: '0.10', roundingMode: 'half_up' } as const;
+
 export const DEFAULT_SETTINGS: Array<{ key: string; kind: 'setting' | 'feature_flag'; value: unknown; description: string }> = [
   { key: 'campaigns.auto_publish_verified', kind: 'feature_flag', value: true, description: 'Verified businesses skip manual campaign review (D-011)' },
-  { key: 'payouts.minimum_minor', kind: 'setting', value: { default: 0 }, description: 'Minimum payout per currency in minor units. DECISION NEEDED D-017 (placeholder 0).' },
+  { key: 'payouts.minimum_minor', kind: 'setting', value: DEFAULT_PAYOUT_MINIMUM_MINOR, description: 'Minimum payout per currency in minor units (D-017: provisional owner-delegated default, 10 major units; editable in Admin → Settings).' },
   { key: 'payouts.enabled', kind: 'feature_flag', value: true, description: 'Allow creators to request payouts' },
   { key: 'admin.dual_approval_threshold_minor', kind: 'setting', value: { default: 0 }, description: 'Manual financial adjustments at or above this amount require a second approver (0 = always).' },
   { key: 'funding.manual_confirmation_required', kind: 'setting', value: true, description: 'Bank-transfer fundings require admin confirmation' },
@@ -57,15 +69,15 @@ export async function seedReferenceData(prisma: PrismaClient, opts: { environmen
     const toAdd = [...wanted].filter((id) => !have.has(id));
     if (toAdd.length) await prisma.rolePermission.createMany({ data: toAdd.map((permissionId) => ({ roleId: role.id, permissionId })) });
   }
-  // Default pricing / fee plan (0 fee until D-003 is decided)
+  // Default pricing / fee plan (D-003). Never overwrites a plan an operator already changed.
   await prisma.pricingPlan.upsert({
     where: { planKey: 'default' },
     update: {},
     create: {
       planKey: 'default',
-      name: 'Default (pricing pending)',
-      description: 'No CODEK fee is charged until pricing is decided (DECISION NEEDED D-003).',
-      feePlanJson: { planKey: 'default', basis: 'none', rate: null, roundingMode: 'half_up' },
+      name: 'Standard',
+      description: 'CODEK fee: 10% of the creator commission, paid by the business in addition to the commission (D-003, provisional).',
+      feePlanJson: { ...DEFAULT_FEE_PLAN },
       isDefault: true,
     },
   });

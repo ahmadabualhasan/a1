@@ -139,7 +139,18 @@ describe('reference seed', () => {
     const owner = await prisma.role.findUnique({ where: { name: 'business_owner' }, include: { permissions: true } });
     expect(owner?.permissions.length).toBeGreaterThan(10);
     expect(await prisma.legalDocument.count({ where: { status: 'published' } })).toBe(8);
-    expect((await prisma.pricingPlan.findUnique({ where: { planKey: 'default' } }))?.feePlanJson).toMatchObject({ basis: 'none' });
+    // D-003 / D-017 provisional defaults on a fresh database.
+    expect((await prisma.pricingPlan.findUnique({ where: { planKey: 'default' } }))?.feePlanJson).toMatchObject({ basis: 'percentage_of_commission', rate: '0.10', roundingMode: 'half_up' });
+    expect((await prisma.systemSetting.findUnique({ where: { key: 'payouts.minimum_minor' } }))?.valueJson).toMatchObject({ default: 1000, JOD: 10000 });
+  });
+
+  it('never overwrites pricing or settings an operator changed', async () => {
+    await seedReferenceData(prisma);
+    await prisma.pricingPlan.update({ where: { planKey: 'default' }, data: { feePlanJson: { planKey: 'default', basis: 'percentage_of_commission', rate: '0.05', roundingMode: 'half_up' } } });
+    await prisma.systemSetting.update({ where: { key: 'payouts.minimum_minor' }, data: { valueJson: { default: 2500 } } });
+    await seedReferenceData(prisma);
+    expect((await prisma.pricingPlan.findUnique({ where: { planKey: 'default' } }))?.feePlanJson).toMatchObject({ rate: '0.05' });
+    expect((await prisma.systemSetting.findUnique({ where: { key: 'payouts.minimum_minor' } }))?.valueJson).toEqual({ default: 2500 });
   });
 
   it('never publishes placeholder legal documents in production', async () => {
